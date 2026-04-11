@@ -8,6 +8,7 @@ import {
   PiggyBank,
   Menu,
   X,
+  Wallet,
 } from 'lucide-react';
 import { cn } from '../components/ui/utils';
 
@@ -25,6 +26,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
     { path: '/expenses', label: 'Expenses', icon: TrendingDown },
     { path: '/wishlist', label: 'Wishlist', icon: Heart },
     { path: '/savings', label: 'Savings', icon: PiggyBank },
+    { path: '/wallet', label: 'Wallet', icon: Wallet },
   ];
 
   return (

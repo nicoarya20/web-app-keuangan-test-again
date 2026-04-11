@@ -35,15 +35,37 @@ export interface Saving {
   type: 'saving' | 'investment';
 }
 
+export interface WalletTransaction {
+  id: string;
+  type: 'topup' | 'expense';
+  amount: number;
+  note?: string;
+  date: string;
+}
+
+export interface Wallet {
+  id: string;
+  name: string;
+  walletType: 'cash' | 'ewallet' | 'bank';
+  initialBalance: number;
+  currentBalance: number;
+  transactions: WalletTransaction[];
+}
+
 interface FinanceContextType {
   incomes: Income[];
   expenses: Expense[];
   wishlist: WishlistItem[];
   savings: Saving[];
+  wallets: Wallet[];
   addIncome: (income: Omit<Income, 'id'>) => void;
   addExpense: (expense: Omit<Expense, 'id'>) => void;
   addWishlistItem: (item: Omit<WishlistItem, 'id'>) => void;
   addSaving: (saving: Omit<Saving, 'id'>) => void;
+  addWallet: (wallet: Omit<Wallet, 'id' | 'currentBalance' | 'transactions'>) => void;
+  deleteWallet: (id: string) => void;
+  addWalletTransaction: (walletId: string, tx: Omit<WalletTransaction, 'id'>) => void;
+  deleteWalletTransaction: (walletId: string, txId: string) => void;
   updateWishlistItem: (id: string, updates: Partial<WishlistItem>) => void;
   deleteIncome: (id: string) => void;
   deleteExpense: (id: string) => void;
@@ -61,6 +83,7 @@ const STORAGE_KEYS = {
   wishlist: 'finance_wishlist',
   savings: 'finance_savings',
   budgets: 'finance_budgets',
+  wallets: 'finance_wallets',
 };
 
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -159,7 +182,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [savings, setSavings] = useState<Saving[]>(() => {
     const stored = localStorage.getItem(STORAGE_KEYS.savings);
     if (stored) return JSON.parse(stored);
-    
+
     // Demo data
     const today = new Date();
     return [
@@ -176,6 +199,86 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         goalName: 'Stock Investment',
         date: new Date(today.getFullYear(), today.getMonth(), 10).toISOString().split('T')[0],
         type: 'investment',
+      },
+    ];
+  });
+
+  const [wallets, setWallets] = useState<Wallet[]>(() => {
+    const stored = localStorage.getItem(STORAGE_KEYS.wallets);
+    if (stored) return JSON.parse(stored);
+
+    // Demo data
+    const today = new Date();
+    const todayStr = today.toISOString().split('T')[0];
+    return [
+      {
+        id: '1',
+        name: 'Dompet Fisik',
+        walletType: 'cash',
+        initialBalance: 500000,
+        currentBalance: 350000,
+        transactions: [
+          {
+            id: '1',
+            type: 'topup',
+            amount: 500000,
+            note: 'Saldo awal',
+            date: todayStr,
+          },
+          {
+            id: '2',
+            type: 'expense',
+            amount: 150000,
+            note: 'Beli makan siang',
+            date: todayStr,
+          },
+        ],
+      },
+      {
+        id: '2',
+        name: 'GoPay',
+        walletType: 'ewallet',
+        initialBalance: 200000,
+        currentBalance: 150000,
+        transactions: [
+          {
+            id: '1',
+            type: 'topup',
+            amount: 200000,
+            note: 'Top up dari BCA',
+            date: todayStr,
+          },
+          {
+            id: '2',
+            type: 'expense',
+            amount: 50000,
+            note: 'Order GoFood',
+            date: todayStr,
+          },
+        ],
+      },
+      {
+        id: '3',
+        name: 'BCA',
+        walletType: 'bank',
+        initialBalance: 5000000,
+        currentBalance: 4200000,
+        transactions: [
+          {
+            id: '1',
+            type: 'topup',
+            amount: 5000000,
+            note: 'Gaji masuk',
+            date: todayStr,
+          },
+          {
+            id: '2',
+            type: 'expense',
+            amount: 800000,
+            note: 'Transfer ke GoPay & bayar tagihan',
+            date: todayStr,
+          },
+        ],
       },
     ];
   });
@@ -207,6 +310,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.savings, JSON.stringify(savings));
   }, [savings]);
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.wallets, JSON.stringify(wallets));
+  }, [wallets]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.budgets, JSON.stringify(categoryBudgets));
@@ -254,6 +361,51 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setSavings((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const addWallet = (wallet: Omit<Wallet, 'id' | 'currentBalance' | 'transactions'>) => {
+    const newWallet: Wallet = {
+      ...wallet,
+      id: Date.now().toString(),
+      currentBalance: wallet.initialBalance,
+      transactions: [],
+    };
+    setWallets((prev) => [...prev, newWallet]);
+  };
+
+  const deleteWallet = (id: string) => {
+    setWallets((prev) => prev.filter((w) => w.id !== id));
+  };
+
+  const addWalletTransaction = (walletId: string, tx: Omit<WalletTransaction, 'id'>) => {
+    const newTx = { ...tx, id: Date.now().toString() };
+    setWallets((prev) =>
+      prev.map((wallet) => {
+        if (wallet.id !== walletId) return wallet;
+        const balanceChange = tx.type === 'topup' ? tx.amount : -tx.amount;
+        return {
+          ...wallet,
+          currentBalance: wallet.currentBalance + balanceChange,
+          transactions: [newTx, ...wallet.transactions],
+        };
+      })
+    );
+  };
+
+  const deleteWalletTransaction = (walletId: string, txId: string) => {
+    setWallets((prev) =>
+      prev.map((wallet) => {
+        if (wallet.id !== walletId) return wallet;
+        const tx = wallet.transactions.find((t) => t.id === txId);
+        if (!tx) return wallet;
+        const balanceChange = tx.type === 'topup' ? -tx.amount : tx.amount;
+        return {
+          ...wallet,
+          currentBalance: wallet.currentBalance + balanceChange,
+          transactions: wallet.transactions.filter((t) => t.id !== txId),
+        };
+      })
+    );
+  };
+
   const setCategoryBudget = (category: string, budget: number) => {
     setCategoryBudgets((prev) => ({ ...prev, [category]: budget }));
   };
@@ -265,10 +417,15 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         expenses,
         wishlist,
         savings,
+        wallets,
         addIncome,
         addExpense,
         addWishlistItem,
         addSaving,
+        addWallet,
+        deleteWallet,
+        addWalletTransaction,
+        deleteWalletTransaction,
         updateWishlistItem,
         deleteIncome,
         deleteExpense,
