@@ -1,24 +1,55 @@
 # Structure Project — Web-App Keuangan
 
 > Personal Finance Management Web Application (Indonesian Rupiah)  
-> Generated from Figma Design · React + TypeScript + Vite + Tailwind CSS v4
+> Generated from Figma Design · React + TypeScript + Vite + Tailwind CSS v4 · Hono Backend API
 
 ---
 
 ## Table of Contents
 
-1. [Root Files](#root-files)
-2. [Configuration Files](#configuration-files)
-3. [Source Code (`src/`)](#source-code-src)
-4. [App Architecture](#app-architecture)
-5. [Pages](#pages)
-6. [Components](#components)
-7. [UI Components (shadcn/ui)](#ui-components-shadcnui)
-8. [State Management](#state-management)
-9. [Database Schema (Prisma)](#database-schema-prisma)
-10. [Styling](#styling)
-11. [Documentation (`MIND/`)](#documentation-mind)
-12. [Key Decisions & Notes](#key-decisions--notes)
+1. [Project Structure (Overview)](#project-structure-overview)
+2. [Root Files](#root-files)
+3. [Configuration Files](#configuration-files)
+4. [Frontend (`src/`)](#frontend-src)
+5. [Backend (`backend/`)](#backend)
+6. [App Architecture (Frontend)](#app-architecture-frontend)
+7. [API Architecture (Backend)](#api-architecture-backend)
+8. [Pages](#pages)
+9. [Components](#components)
+10. [UI Components (shadcn/ui)](#ui-components-shadcnui)
+11. [State Management](#state-management)
+12. [Database Schema (Prisma)](#database-schema-prisma)
+13. [Backend API Endpoints](#backend-api-endpoints)
+14. [Styling](#styling)
+15. [Documentation (`MIND/`)](#documentation-mind)
+16. [Git Branches](#git-branches)
+17. [Commands](#commands)
+18. [Key Decisions & Notes](#key-decisions--notes)
+
+---
+
+## Project Structure (Overview)
+
+```
+Web-App-Keuangan/
+├── src/                        ← Frontend (React SPA)
+├── backend/                    ← Backend (Hono API)
+│   ├── src/
+│   │   ├── index.ts            # Entry point, route mounting
+│   │   ├── lib/prisma.ts       # Singleton Prisma client
+│   │   ├── middleware/          # Error handler
+│   │   └── routes/              # 8 feature route modules
+│   ├── prisma/schema.prisma    # Database schema (8 models, 5 enums)
+│   ├── .env                    # Supabase credentials
+│   └── package.json
+├── prisma/                     # Root Prisma (legacy)
+│   └── schema.prisma
+├── MIND/                       # Planning & documentation
+├── guidelines/
+├── package.json                # Frontend deps
+├── vite.config.ts
+└── prisma.config.ts
+```
 
 ---
 
@@ -26,138 +57,127 @@
 
 | File | Purpose |
 |------|---------|
-| `.env` | Environment variables: `DATABASE_URL`, `DIRECT_URL` (Supabase PostgreSQL) |
+| `.env` | `DATABASE_URL`, `DIRECT_URL` (Supabase PostgreSQL) |
 | `.gitignore` | Excludes `node_modules/`, `dist/`, `.DS_Store` |
 | `ATTRIBUTIONS.md` | Third-party attributions |
 | `bun.lock` | Bun lockfile |
 | `package-lock.json` | npm lockfile |
 | `pnpm-lock.yaml` | pnpm lockfile |
-| `index.html` | HTML entry point — mounts `#root`, loads `src/main.tsx` |
-| `package.json` | Dependencies, scripts (`dev`, `build`) |
-| `postcss.config.mjs` | Empty — Tailwind v4 uses `@tailwindcss/vite` plugin |
-| `prisma.config.ts` | Prisma config: schema path, migrations, classic engine |
-| `QWEN.md` | AI assistant context for this project |
-| `README.md` | Brief setup instructions from Figma Make |
-| `vite.config.ts` | Vite config: React + Tailwind plugins, `@` alias |
+| `index.html` | HTML entry — mounts `#root`, loads `src/main.tsx` |
+| `package.json` | Frontend dependencies & scripts |
+| `postcss.config.mjs` | Empty — Tailwind v4 uses `@tailwindcss/vite` |
+| `prisma.config.ts` | Root Prisma config (legacy, backend has its own) |
+| `QWEN.md` | AI assistant context |
+| `README.md` | Setup instructions from Figma Make |
+| `vite.config.ts` | Vite: React + Tailwind, `@` alias |
 
 ---
 
 ## Configuration Files
 
-### `package.json`
+### Frontend `package.json`
 
 ```json
 {
   "name": "@figma/my-make-file",
   "type": "module",
+  "scripts": { "dev": "vite", "build": "vite build" }
+}
+```
+
+**Key Dependencies:** React 18, React Router 7, MUI 7, Radix UI (38 components), Lucide React, Recharts, Motion, date-fns, Sonner, Tailwind CSS 4, @supabase/supabase-js  
+**Dev Dependencies:** Vite 6, @vitejs/plugin-react, @tailwindcss/vite, Prisma 6, dotenv
+
+### Backend `package.json`
+
+```json
+{
+  "name": "web-app-keuangan-backend",
+  "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build"
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:generate": "prisma generate"
   }
 }
 ```
 
-**Key Dependencies:**
-- **Framework:** React 18.3.1, React Router 7.13.0
-- **UI:** MUI 7.3.5, 38 Radix UI primitives, Lucide React, Motion
-- **Charts:** Recharts 2.15.2
-- **Forms:** React Hook Form 7.55.0
-- **Dates:** date-fns 3.6.0
-- **Notifications:** Sonner 2.0.3
-- **Styling:** Tailwind CSS 4.1.12, class-variance-authority, clsx, tailwind-merge
-
-**Dev Dependencies:**
-- Vite 6.3.5, @vitejs/plugin-react, @tailwindcss/vite
-- Prisma 6.19.3, dotenv
-
-### `vite.config.ts`
-
-```ts
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-
-export default defineConfig({
-  plugins: [react(), tailwindcss()],
-  resolve: { alias: { '@': path.resolve(__dirname, './src') } },
-  assetsInclude: ['**/*.svg', '**/*.csv'],
-})
-```
-
-### `prisma.config.ts`
-
-```ts
-export default defineConfig({
-  schema: "prisma/schema.prisma",
-  migrations: { path: "prisma/migrations" },
-  engine: "classic",
-  datasource: { url: env("DATABASE_URL") },
-})
-```
+**Dependencies:** Hono, @hono/node-server, @prisma/client  
+**Dev Dependencies:** Prisma, TypeScript, tsx, @types/node
 
 ---
 
-## Source Code (`src/`)
+## Frontend (`src/`)
 
 ```
 src/
-├── main.tsx                           # Entry point
+├── main.tsx                           # Entry: renders <App />
 ├── app/
-│   ├── App.tsx                        # Root: FinanceProvider + Router + Toaster
-│   ├── routes.ts                      # React Router v7 route definitions
+│   ├── App.tsx                        # FinanceProvider + Router + Toaster
+│   ├── routes.ts                      # React Router v7 definitions
 │   ├── components/
-│   │   ├── Sidebar.tsx                # Responsive sidebar navigation
-│   │   ├── Topbar.tsx                 # Top bar: hamburger, search, notifications
+│   │   ├── Sidebar.tsx                # Responsive sidebar nav (6 items)
+│   │   ├── Topbar.tsx                 # Hamburger, search, notifications
 │   │   ├── PageTransition.tsx         # Page transition animations
-│   │   ├── figma/
-│   │   │   └── ImageWithFallback.tsx  # Image component with fallback
-│   │   └── ui/                        # 38 shadcn/ui components (see below)
-│   ├── context/
-│   │   └── FinanceContext.tsx         # Global state: localStorage CRUD
-│   ├── layouts/
-│   │   └── RootLayout.tsx            # Main layout: Sidebar + Topbar + Outlet
+│   │   ├── figma/ImageWithFallback.tsx
+│   │   └── ui/                        # 38 shadcn/ui components
+│   ├── context/FinanceContext.tsx     # localStorage CRUD state
+│   ├── layouts/RootLayout.tsx        # Sidebar + Topbar + <Outlet />
 │   └── pages/
-│       ├── Dashboard.tsx              # Financial overview with charts
+│       ├── Dashboard.tsx              # Financial overview + charts
 │       ├── IncomePage.tsx             # Income tracking
 │       ├── ExpensesPage.tsx           # Expense tracking + budgets
 │       ├── WishlistPage.tsx           # Savings goals
-│       ├── SavingsPage.tsx            # Savings & investment tracking
-│       └── WalletPage.tsx             # Multi-wallet balance management
-├── imports/
-│   └── pasted_text/
-│       └── personal-finance-app.md    # Original Figma Make source spec
-├── lib/
-│   └── supabase.ts                    # Supabase client (created, not wired)
+│       ├── SavingsPage.tsx            # Savings & investments
+│       └── WalletPage.tsx             # Multi-wallet management
+├── imports/pasted_text/personal-finance-app.md   # Original Figma spec
+├── lib/supabase.ts                    # Supabase client (fixed types)
 ├── styles/
-│   ├── index.css                      # Main stylesheet (imports others)
-│   ├── tailwind.css                   # Tailwind v4 imports
-│   ├── theme.css                      # Custom design tokens (OKLCH colors)
-│   └── fonts.css                      # Font definitions (empty)
-└── generated/
-    └── prisma/                        # Auto-generated Prisma client types
-        ├── browser.ts
-        ├── client.ts
-        ├── commonInputTypes.ts
-        ├── enums.ts
-        ├── models.ts
-        ├── internal/
-        │   ├── class.ts
-        │   ├── prismaNamespace.ts
-        │   └── prismaNamespaceBrowser.ts
-        └── models/
-            ├── Budget.ts
-            ├── Expense.ts
-            ├── Income.ts
-            ├── Saving.ts
-            ├── User.ts
-            ├── Wallet.ts
-            ├── WalletTransaction.ts
-            └── Wishlist.ts
+│   ├── index.css                      # Main (imports tailwind, theme, fonts)
+│   ├── tailwind.css                   # Tailwind v4 config
+│   ├── theme.css                      # OKLCH design tokens
+│   └── fonts.css                      # (empty)
+└── generated/prisma/                  # Auto-generated Prisma types
+    ├── client.ts, browser.ts, models.ts, enums.ts
+    └── models/{Budget,Expense,Income,Saving,User,Wallet,WalletTransaction,Wishlist}.ts
 ```
 
 ---
 
-## App Architecture
+## Backend (`backend/`)
+
+```
+backend/
+├── .env                               # DATABASE_URL, DIRECT_URL (Supabase)
+├── .gitignore                         # node_modules/, dist/, .env
+├── package.json                       # Hono + Prisma + tsx
+├── tsconfig.json                      # ES2020, strict, bundler resolution
+├── prisma/
+│   └── schema.prisma                  # 8 models + 5 enums
+└── src/                               # 749 lines total
+    ├── index.ts                       # Entry: CORS, logger, error handler, routes
+    ├── lib/
+    │   └── prisma.ts                  # Singleton Prisma client (7 lines)
+    ├── middleware/
+    │   └── errorHandler.ts            # Centralized error handling (20 lines)
+    └── routes/                        # 8 feature modules (651 lines)
+        ├── user.ts                    # User CRUD, get by email (47 lines)
+        ├── income.ts                  # Income CRUD + monthly summary (75 lines)
+        ├── expense.ts                 # Expense CRUD + monthly summary (78 lines)
+        ├── wallet.ts                  # Wallet CRUD + transactions + balance (115 lines)
+        ├── saving.ts                  # Saving CRUD + growth data (72 lines)
+        ├── wishlist.ts                # Wishlist CRUD + progress summary (66 lines)
+        ├── budget.ts                  # Budget CRUD + spending progress (75 lines)
+        └── dashboard.ts               # Full dashboard stats + cashflow (123 lines)
+```
+
+---
+
+## App Architecture (Frontend)
 
 ```
 index.html
@@ -173,11 +193,11 @@ index.html
               └── <Toaster />             (notifications)
 ```
 
-### Routing (`routes.ts`)
+### Frontend Routing
 
 | Path | Component | Description |
 |------|-----------|-------------|
-| `/` | `Dashboard` | Financial overview, charts, stats |
+| `/` | `Dashboard` | Overview, charts, stats |
 | `/income` | `IncomePage` | Income management |
 | `/expenses` | `ExpensesPage` | Expense tracking + budgets |
 | `/wishlist` | `WishlistPage` | Savings goals |
@@ -186,127 +206,75 @@ index.html
 
 ---
 
+## API Architecture (Backend)
+
+```
+Hono Server (port 3000)
+  ├── Global Middleware
+  │   ├── logger()              — Request logging
+  │   ├── cors()                — Allow localhost:5173
+  │   └── errorHandler          — Prisma error mapping
+  ├── GET /                     — Health check + endpoint list
+  └── /api/*                    — Feature routes
+        ├── /api/users          — userRoutes
+        ├── /api/incomes        — incomeRoutes
+        ├── /api/expenses       — expenseRoutes
+        ├── /api/wallets        — walletRoutes (+ /transactions)
+        ├── /api/savings        — savingRoutes
+        ├── /api/wishlists      — wishlistRoutes
+        ├── /api/budgets        — budgetRoutes
+        └── /api/dashboard      — dashboardRoutes
+```
+
+---
+
 ## Pages
 
 ### `Dashboard.tsx`
-- **Stats Cards:** Total wallet balance, income, expenses, saving rate
-- **Charts:** Expense pie chart (by category), Cashflow line chart (7 days)
-- **Quick Insights:** Highest spending category, budget warnings (80%+)
-- **Recent Transactions:** Mixed income + expenses, sorted by date
+Stats: wallet balance, income, expenses, saving rate. Charts: expense pie, cashflow line (7 days). Insights: highest category, budget warnings (80%+). Recent transactions (mixed, sorted by date).
 
 ### `IncomePage.tsx`
-- Add income: amount, category, date, recurring toggle, note
-- Stats: Total income, Monthly recurring
-- List: All incomes with delete
+Add income: amount, category, date, recurring toggle, note. Stats: total, monthly recurring. List with delete. Mobile-responsive stacking.
 
 ### `ExpensesPage.tsx`
-- Add expense: amount, category, date, note, tags (comma-separated)
-- Set category budgets via dialog
-- Budget progress bars with color-coded warnings (green → amber → red)
-- List: All expenses with tags, delete
+Add expense: amount, category, date, note, tags. Set category budgets. Progress bars with color-coded warnings (green → amber → red). List with tags, delete.
 
 ### `WishlistPage.tsx`
-- Add wishlist item: name, target price, current progress, priority, note
-- Stats: Total wishlist value, total saved
-- Cards: Progress bar, remaining amount, inline update, priority badge
-- Grid: 1 col mobile → 2 col desktop
+Add items: name, target price, progress, priority, note. Cards with progress bar, remaining amount, inline update. Grid 1 col → 2 col.
 
 ### `SavingsPage.tsx`
-- Add saving: amount, goal name, date, type (saving/investment)
-- Stats: Total amount, savings, investments
-- Growth chart: Cumulative line chart
-- Goals breakdown: Grid cards per goal
+Add saving: amount, goal, date, type. Growth chart (cumulative). Goals breakdown grid.
 
 ### `WalletPage.tsx`
-- Add wallet: name, type (cash/ewallet/bank), initial balance
-- Total balance card (gradient, sum of all wallets)
-- Wallet cards: Color-coded by type, top-up/expense buttons, expandable transaction history
-- Each transaction: type icon, amount, note, date, delete
+Add wallets: name, type (cash/ewallet/bank), initial balance. Gradient total card. Color-coded wallet cards. Top-up/expense buttons. Expandable transaction history.
 
 ---
 
 ## Components
 
-### `RootLayout.tsx`
-Responsive shell with `Sidebar` + `Topbar` + `<Outlet />`. Main content offset on desktop (`lg:pl-64`).
-
-### `Sidebar.tsx`
-- Fixed `w-64`, slides in/out on mobile with overlay
-- 6 nav items with active route highlighting
-- User profile footer
-
-### `Topbar.tsx`
-- Hamburger menu (mobile only)
-- Search bar (`hidden sm:flex`)
-- Notification bell with red dot
-
-### `PageTransition.tsx`
-Wraps page content for animated transitions between routes.
+| Component | Description |
+|-----------|-------------|
+| `RootLayout.tsx` | Responsive shell: Sidebar + Topbar + `<Outlet />`. Offset `lg:pl-64` on desktop. |
+| `Sidebar.tsx` | Fixed `w-64`, slides on mobile with overlay. 6 nav items. Active highlighting. User footer. |
+| `Topbar.tsx` | Hamburger (mobile), search bar (`hidden sm:flex`), notification bell with dot. |
+| `PageTransition.tsx` | Animated page transitions. |
 
 ---
 
 ## UI Components (shadcn/ui)
 
-38 components in `src/app/components/ui/`, built on Radix UI primitives:
+38 components in `src/app/components/ui/` on Radix UI primitives.
 
-| Component | Base Library | Used In |
-|-----------|-------------|---------|
-| `accordion.tsx` | Radix Accordion | — (unused) |
-| `alert-dialog.tsx` | Radix Alert Dialog | — (unused) |
-| `alert.tsx` | — | — (unused) |
-| `aspect-ratio.tsx` | Radix Aspect Ratio | — (unused) |
-| `avatar.tsx` | Radix Avatar | — (unused) |
-| `badge.tsx` | — | — (unused) |
-| `breadcrumb.tsx` | — | — (unused) |
-| `button.tsx` | CVA variants | **All pages** |
-| `calendar.tsx` | Radix + date-fns | — (unused) |
-| `card.tsx` | — | **All pages** |
-| `carousel.tsx` | Embla Carousel | — (unused) |
-| `chart.tsx` | Recharts wrapper | — (unused) |
-| `checkbox.tsx` | Radix Checkbox | — (unused) |
-| `collapsible.tsx` | Radix Collapsible | — (unused) |
-| `command.tsx` | cmdk | — (unused) |
-| `context-menu.tsx` | Radix Context Menu | — (unused) |
-| `dialog.tsx` | Radix Dialog | **All pages** |
-| `drawer.tsx` | vaul | — (unused) |
-| `dropdown-menu.tsx` | Radix Dropdown Menu | — (unused) |
-| `form.tsx` | React Hook Form | — (unused) |
-| `hover-card.tsx` | Radix Hover Card | — (unused) |
-| `input-otp.tsx` | input-otp | — (unused) |
-| `input.tsx` | — | **All pages** |
-| `label.tsx` | Radix Label | **All pages** |
-| `menubar.tsx` | Radix Menubar | — (unused) |
-| `navigation-menu.tsx` | Radix Nav Menu | — (unused) |
-| `pagination.tsx` | — | — (unused) |
-| `popover.tsx` | Radix Popover | — (unused) |
-| `progress.tsx` | Radix Progress | **Expenses, Wishlist** |
-| `radio-group.tsx` | Radix Radio Group | — (unused) |
-| `resizable.tsx` | React Resizable Panels | — (unused) |
-| `scroll-area.tsx` | Radix Scroll Area | — (unused) |
-| `select.tsx` | Radix Select | **All pages** |
-| `separator.tsx` | Radix Separator | — (unused) |
-| `sheet.tsx` | Radix Dialog (sheet) | — (unused) |
-| `sidebar.tsx` | Radix + Context | — (unused, custom Sidebar used) |
-| `skeleton.tsx` | — | — (unused) |
-| `slider.tsx` | Radix Slider | — (unused) |
-| `sonner.tsx` | Sonner | **App.tsx** |
-| `switch.tsx` | Radix Switch | **IncomePage** |
-| `table.tsx` | — | — (unused) |
-| `tabs.tsx` | Radix Tabs | — (unused) |
-| `textarea.tsx` | — | **WishlistPage** |
-| `toggle.tsx` | Radix Toggle | — (unused) |
-| `toggle-group.tsx` | Radix Toggle Group | — (unused) |
-| `tooltip.tsx` | Radix Tooltip | — (unused) |
-| `use-mobile.ts` | Custom hook | Returns `useIsMobile()` (768px) |
-| `utils.ts` | clsx + tailwind-merge | `cn()` utility |
+**Actively used:** `button`, `card`, `dialog`, `input`, `label`, `select`, `switch`, `progress`, `textarea`, `sonner`  
+**Scaffolded (unused):** `accordion`, `alert-dialog`, `alert`, `avatar`, `badge`, `calendar`, `carousel`, `checkbox`, `command`, `context-menu`, `drawer`, `dropdown-menu`, `form`, `hover-card`, `input-otp`, `menubar`, `navigation-menu`, `pagination`, `popover`, `radio-group`, `resizable`, `scroll-area`, `separator`, `sheet`, `skeleton`, `slider`, `table`, `tabs`, `toggle`, `tooltip`
+
+**Utilities:** `utils.ts` (`cn()` = clsx + tailwind-merge), `use-mobile.ts` (`useIsMobile()` at 768px)
 
 ---
 
 ## State Management
 
-### `FinanceContext.tsx`
-
-All state is **localStorage-based** with 6 storage keys:
+### `FinanceContext.tsx` — localStorage
 
 | Key | Data | Demo Records |
 |-----|------|-------------|
@@ -314,56 +282,16 @@ All state is **localStorage-based** with 6 storage keys:
 | `finance_expenses` | Expense[] | 4 (Food, Transport, Bills, Entertainment) |
 | `finance_wishlist` | WishlistItem[] | 2 (MacBook Pro, Bali Vacation) |
 | `finance_savings` | Saving[] | 2 (Emergency Fund, Stock Investment) |
-| `finance_wallets` | Wallet[] | 3 (Dompet Fisik, GoPay, BCA) |
-| `finance_budgets` | Record\<string, number\> | 3 (Food, Transport, Entertainment) |
+| `finance_wallets` | Wallet[] | 3 (Dompet Fisik Rp 350K, GoPay Rp 150K, BCA Rp 4.2M) |
+| `finance_budgets` | Record\<string, number\> | 3 (Food 2M, Transport 1M, Entertainment 500K) |
 
-**CRUD Operations per entity:**
-- `add*()` — generates ID via `Date.now().toString()`
-- `delete*()` — filters by ID
-- `updateWishlistItem()` — partial update
-- `addWalletTransaction()` — adds tx, updates `currentBalance`
-- `deleteWalletTransaction()` — removes tx, recalculates balance
-- `setCategoryBudget()` — sets budget for a category
-
-### Data Models (TypeScript)
-
-```typescript
-interface Income {
-  id: string; amount: number; category: string;
-  date: string; recurring: boolean; note?: string;
-}
-interface Expense {
-  id: string; amount: number; category: string;
-  date: string; note?: string; tags?: string[];
-}
-interface WishlistItem {
-  id: string; name: string; targetPrice: number;
-  currentProgress: number; priority: 'low'|'medium'|'high'; note?: string;
-}
-interface Saving {
-  id: string; amount: number; goalName: string;
-  date: string; type: 'saving'|'investment';
-}
-interface Wallet {
-  id: string; name: string; walletType: 'cash'|'ewallet'|'bank';
-  initialBalance: number; currentBalance: number;
-  transactions: WalletTransaction[];
-}
-interface WalletTransaction {
-  id: string; type: 'topup'|'expense'; amount: number;
-  note?: string; date: string;
-}
-```
+CRUD: `add*()`, `delete*()`, `updateWishlistItem()`, `addWalletTransaction()`, `deleteWalletTransaction()`, `setCategoryBudget()`. IDs via `Date.now().toString()`.
 
 ---
 
 ## Database Schema (Prisma)
 
-**Status:** Schema defined, client generated, **not yet wired into app**.  
-**Provider:** PostgreSQL (Supabase)  
-**Models:** 8 models + 5 enums
-
-### Entity Relationship Diagram
+**Provider:** PostgreSQL (Supabase) · **Models:** 8 + **Enums:** 5
 
 ```
 User (1) ──┬── (M) Income
@@ -375,50 +303,114 @@ User (1) ──┬── (M) Income
                      └── (M) WalletTransaction (type: TOPUP | EXPENSE)
 ```
 
-### Design Decisions
-
 | Decision | Rationale |
 |----------|-----------|
-| `amount` as `Int` | Stored as whole Rupiah (no decimals) |
-| `String[]` for Expense tags | PostgreSQL native arrays |
-| `currentBalance @default(0)` on Wallet | Computed by app from transactions |
+| `amount` as `Int` | Whole Rupiah, no decimals |
+| `String[]` for tags | PostgreSQL native arrays |
+| `currentBalance @default(0)` | Computed by app from transactions |
 | `@@unique([userId, category])` on Budget | One budget per category per user |
-| `onDelete: Cascade` | Deleting parent cleans up children |
-| Indexes on `[userId, date]` and `[userId, category]` | Optimizes monthly filtering & category grouping |
-| `@map("snake_case")` | Clean table names in database |
+| `onDelete: Cascade` | Parent deletion cascades to children |
+| Indexes on `[userId, date]`, `[userId, category]` | Monthly filtering & category grouping |
+
+---
+
+## Backend API Endpoints
+
+### User
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/users` | Create user |
+| GET | `/api/users/:id` | Get by ID |
+| GET | `/api/users/email/:email` | Get by email |
+| PATCH | `/api/users/:id` | Update user |
+| DELETE | `/api/users/:id` | Delete user |
+
+### Income
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/incomes/user/:userId` | All incomes (date desc) |
+| GET | `/api/incomes/user/:userId/monthly-summary` | Total + recurring + by category |
+| POST | `/api/incomes` | Create income |
+| PATCH | `/api/incomes/:id` | Update income |
+| DELETE | `/api/incomes/:id` | Delete income |
+
+### Expense
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/expenses/user/:userId` | All expenses (date desc) |
+| GET | `/api/expenses/user/:userId/monthly-summary` | Total + category breakdown + recent 5 |
+| POST | `/api/expenses` | Create expense |
+| PATCH | `/api/expenses/:id` | Update expense |
+| DELETE | `/api/expenses/:id` | Delete expense |
+
+### Wallet
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/wallets/user/:userId` | Wallets + transactions (date desc) |
+| GET | `/api/wallets/user/:userId/total-balance` | Sum of all balances + count |
+| POST | `/api/wallets` | Create wallet (sets currentBalance = initialBalance) |
+| PATCH | `/api/wallets/:id` | Update wallet |
+| DELETE | `/api/wallets/:id` | Delete wallet (cascades to transactions) |
+
+### Wallet Transaction
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/wallets/transactions` | Create tx + atomic balance update via `$transaction` |
+| DELETE | `/api/wallets/transactions/:id` | Delete tx + revert balance |
+
+### Saving
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/savings/user/:userId` | All savings (date asc) |
+| GET | `/api/savings/user/:userId/summary` | Totals + goals + cumulative growth data |
+| POST | `/api/savings` | Create saving |
+| DELETE | `/api/savings/:id` | Delete saving |
+
+### Wishlist
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/wishlists/user/:userId` | All wishlists |
+| GET | `/api/wishlists/user/:userId/summary` | Total target + saved + progress % + count |
+| POST | `/api/wishlists` | Create wishlist |
+| PATCH | `/api/wishlists/:id` | Update wishlist |
+| DELETE | `/api/wishlists/:id` | Delete wishlist |
+
+### Budget
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/budgets/user/:userId` | All budgets |
+| GET | `/api/budgets/user/:userId/progress` | Budget vs actual spending per category (% isOverBudget, isWarning) |
+| POST | `/api/budgets` | Upsert budget (by userId + category) |
+| DELETE | `/api/budgets/:id` | Delete budget |
+
+### Dashboard
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/dashboard/user/:userId` | Full stats (balance, income, expense, savings, wallets) + category pie data + recent 10 transactions |
+| GET | `/api/dashboard/user/:userId/cashflow` | 7-day income vs expense data (for line chart) |
 
 ---
 
 ## Styling
 
 ### Tailwind CSS v4
-
-Uses `@tailwindcss/vite` plugin (no PostCSS). Configuration in `src/styles/tailwind.css`:
-
-```css
-@import 'tailwindcss' source(none);
-@source '../**/*.{ts,tsx,html}';
-@import 'tw-animate-css';
-```
+Uses `@tailwindcss/vite` plugin. Source: `@source '../**/*.{ts,tsx,html}'`. Animations via `tw-animate-css`.
 
 ### Theme Tokens (`theme.css`)
-
-- **OKLCH color palette** — light/dark mode via CSS variables
-- **Font scale** — `--text-xs` through `--text-xl`
-- **Border radius** — `--radius: 0.625rem` (sm/md/lg/xl variants)
+- **OKLCH color palette** — light/dark via CSS variables
+- **Font scale:** `--text-xs` → `--text-xl`
+- **Border radius:** `--radius: 0.625rem` (sm/md/lg/xl)
 - **Base font size:** 16px
 
-### Design Patterns
-
-| Pattern | Example Classes |
-|---------|----------------|
-| Card | `bg-white rounded-2xl shadow-sm` |
-| Button | `bg-indigo-600 hover:bg-indigo-700 rounded-xl` |
-| Input | `rounded-xl text-base md:text-sm` |
-| Dialog | `max-w-[calc(100%-2rem)] max-h-[85vh] overflow-y-auto` |
-| Stat card | `p-5 bg-white rounded-2xl shadow-sm` |
-| Responsive header | `flex flex-col sm:flex-row sm:items-center gap-3` |
+### Responsive Patterns
+| Pattern | Classes |
+|---------|---------|
+| Header stacking | `flex flex-col sm:flex-row sm:items-center gap-3` |
 | List item (mobile) | `flex flex-col sm:flex-row gap-3` |
+| Text truncation | `min-w-0 truncate` |
+| Amount scaling | `text-xl sm:text-2xl` |
+| Grid responsive | `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3` |
+| Dialog mobile-safe | `max-w-[calc(100%-2rem)] max-h-[85vh] overflow-y-auto` |
 
 ---
 
@@ -427,14 +419,59 @@ Uses `@tailwindcss/vite` plugin (no PostCSS). Configuration in `src/styles/tailw
 ```
 MIND/
 ├── PLAN/
-│   ├── mobile-responsive-overhaul.md   # Plan for responsive fix
-│   └── wallet-dompet-feature.md        # Plan for wallet feature
+│   ├── mobile-responsive-overhaul.md
+│   └── wallet-dompet-feature.md
 ├── TASKS/
-│   ├── mobile-responsive-overhaul.md   # Task checklist (all ✅)
-│   └── wallet-dompet-feature.md        # Task checklist (all ✅)
-└── SUMMARY/
-    ├── mobile-responsive-overhaul.md   # Summary of responsive changes
-    └── wallet-dompet-feature.md        # Summary of wallet feature
+│   ├── mobile-responsive-overhaul.md   (all ✅)
+│   └── wallet-dompet-feature.md        (all ✅)
+├── SUMMARY/
+│   ├── mobile-responsive-overhaul.md
+│   └── wallet-dompet-feature.md
+└── structure-project.md                ← This file
+```
+
+---
+
+## Git Branches
+
+### Local & Remote (6 branches)
+
+| Branch | Description | Files Changed |
+|--------|-------------|---------------|
+| `main` | Initial commit + mobile responsive overhaul | 80 files |
+| `tasks/wallet-feature/wallet-dompet-feature/2026-04-12-14-00` | Wallet/Dompet feature | 8 files, +927 lines |
+| `tasks/prisma/schema-setup/prisma-schema-all-models/2026-04-12-15-00` | Root Prisma schema | 6 files, +4514 lines |
+| `tasks/backend-setup/hono-prisma-api-server/2026-04-12-16-00` | Initial Hono backend (monolithic) | 7 files, +1515 lines |
+| `tasks/fix/supabase-import-type-error/2026-04-12-17-00` | Fix `import.meta.env` types | 7 files, +4696 lines |
+| `tasks/backend-api/modular-routes-per-feature/2026-04-12-18-00` | Modular backend API (current) | 12 files, +732 lines |
+
+---
+
+## Commands
+
+### Frontend
+```bash
+npm install          # Install frontend dependencies
+npm run dev          # Start Vite dev server (localhost:5173)
+npm run build        # Production build
+```
+
+### Backend
+```bash
+cd backend
+npm install          # Install backend dependencies
+npm run dev          # Start Hono server with hot reload (localhost:3000)
+npm run build        # TypeScript compilation
+npm run start        # Run compiled JS
+npm run db:push      # Push schema to Supabase
+npm run db:generate  # Generate Prisma client
+npm run db:studio    # Open Prisma Studio (DB GUI)
+```
+
+### Prisma (root)
+```bash
+npx prisma validate     # Validate schema
+npx prisma generate     # Generate client
 ```
 
 ---
@@ -442,38 +479,35 @@ MIND/
 ## Key Decisions & Notes
 
 ### Current State
-1. **localStorage-only** — All data persists in browser. Supabase + Prisma backend is configured but **not integrated** into app logic.
-2. **No `tsconfig.json`** — TypeScript compiles via Vite defaults.
-3. **Generated by Figma Make** — `@figma/my-make-file` name, `src/imports/pasted_text/personal-finance-app.md` as original spec.
-4. **Currency:** Indonesian Rupiah (`id-ID` locale), whole integers.
-5. **Mixed language:** UI text is English + Indonesian (Wallet page heavily uses Indonesian).
+1. **Dual persistence** — Frontend uses `localStorage` (6 keys). Backend API is built and tested but **not yet wired into the frontend**. The migration path is to replace `FinanceContext` localStorage calls with `fetch()` to the backend API.
+2. **Backend runs on port 3000**, frontend on 5173. CORS configured for cross-origin.
+3. **Prisma singleton** — `backend/src/lib/prisma.ts` prevents multiple instances during HMR.
+4. **Atomic transactions** — Wallet balance updates use `prisma.$transaction` to ensure consistency.
+5. **No `tsconfig.json`** on frontend — TypeScript compiles via Vite defaults. Backend has full `tsconfig.json` with strict mode.
+6. **Supabase client** (`src/lib/supabase.ts`) is fixed but not actively used. Backend connects directly via Prisma.
 
-### Git Branches
-| Branch | Description |
-|--------|-------------|
-| `main` | Initial commit + mobile responsive overhaul |
-| `tasks/wallet-feature/...` | Wallet/dompet feature |
-| `tasks/prisma/schema-setup/...` | Prisma schema setup |
+### Architecture Decisions
+- **Hono** over Express — lighter, better TypeScript support, native fetch API
+- **tsx watch** — faster dev experience than nodemon + ts-node
+- **Per-feature route modules** — each feature has its own file with CRUD + summary endpoints
+- **Summary endpoints** — `/monthly-summary`, `/summary`, `/progress`, `/cashflow` pre-compute data for frontend charts
+- **Error handler middleware** — maps Prisma errors to HTTP status codes (404, 409, 500)
 
-### Unused Components
-24 of 38 UI components are **not used** in any page. They are available scaffold for future features:
-`accordion`, `alert-dialog`, `alert`, `aspect-ratio`, `avatar`, `badge`, `breadcrumb`, `calendar`, `carousel`, `chart`, `checkbox`, `collapsible`, `command`, `context-menu`, `drawer`, `dropdown-menu`, `form`, `hover-card`, `input-otp`, `menubar`, `navigation-menu`, `pagination`, `popover`, `radio-group`, `resizable`, `scroll-area`, `separator`, `sheet`, `sidebar` (shadcn), `skeleton`, `slider`, `table`, `tabs`, `toggle`, `toggle-group`, `tooltip`.
+### Tech Stack Summary
 
-### Commands
-
-```bash
-# Install
-npm install
-
-# Dev server
-npm run dev
-
-# Production build
-npm run build
-
-# Prisma
-npx prisma validate     # Validate schema
-npx prisma generate     # Generate client
-npx prisma db push      # Push schema to DB
-npx prisma studio       # Open DB GUI
-```
+| Layer | Technology |
+|-------|-----------|
+| **Frontend Framework** | React 18 + TypeScript |
+| **Frontend Build** | Vite 6 |
+| **Frontend Router** | React Router 7 |
+| **Frontend UI** | MUI 7 + Radix UI (38 components) |
+| **Frontend Styling** | Tailwind CSS 4 |
+| **Frontend Charts** | Recharts 2 |
+| **Backend Framework** | Hono |
+| **Backend Runtime** | Node.js + @hono/node-server |
+| **Backend Dev** | tsx (watch mode) |
+| **Database** | PostgreSQL (Supabase) |
+| **ORM** | Prisma 6 |
+| **State (current)** | React Context + localStorage |
+| **Notifications** | Sonner |
+| **Animations** | Motion (Framer Motion) |
