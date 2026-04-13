@@ -55,16 +55,36 @@ router.get('/user/:userId/monthly-summary', async (c) => {
 // Create expense
 router.post('/', async (c) => {
   const body = await c.req.json()
-  const expense = await prisma.expense.create({ data: body })
+  
+  // Ensure date is a proper DateTime
+  const dateValue = body.date.includes('T') ? new Date(body.date) : new Date(body.date + 'T00:00:00.000Z')
+  
+  const expense = await prisma.expense.create({
+    data: {
+      userId: body.userId,
+      amount: body.amount,
+      category: body.category,
+      date: dateValue,
+      note: body.note,
+      tags: body.tags ?? [],
+    },
+  })
   return c.json(expense, 201)
 })
 
 // Update expense
 router.patch('/:id', async (c) => {
   const body = await c.req.json()
+  
+  // Ensure date is a proper DateTime if provided
+  const data: Record<string, unknown> = { ...body }
+  if (body.date) {
+    data.date = body.date.includes('T') ? new Date(body.date) : new Date(body.date + 'T00:00:00.000Z')
+  }
+  
   const expense = await prisma.expense.update({
     where: { id: c.req.param('id') },
-    data: body,
+    data,
   })
   return c.json(expense)
 })

@@ -72,9 +72,12 @@ router.post('/transactions', async (c) => {
   const body = await c.req.json()
   const { walletId, type, amount, note, date } = body
 
+  // Ensure date is a proper DateTime
+  const dateValue = date.includes('T') ? new Date(date) : new Date(date + 'T00:00:00.000Z')
+
   const result = await prisma.$transaction(async (tx) => {
     const transaction = await tx.walletTransaction.create({
-      data: { walletId, type, amount, note, date },
+      data: { walletId, type, amount, note, date: dateValue },
     })
 
     const balanceChange = type === 'TOPUP' ? amount : -amount

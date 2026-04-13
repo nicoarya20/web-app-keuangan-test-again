@@ -152,7 +152,7 @@ function mapWallet(api: ApiWallet): Wallet {
     walletType: api.walletType.toLowerCase() as 'cash' | 'ewallet' | 'bank',
     initialBalance: api.initialBalance,
     currentBalance: api.currentBalance,
-    transactions: api.transactions.map(mapWalletTransaction),
+    transactions: (api.transactions || []).map(mapWalletTransaction),
   }
 }
 

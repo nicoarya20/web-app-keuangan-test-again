@@ -59,7 +59,19 @@ router.get('/user/:userId/summary', async (c) => {
 // Create saving
 router.post('/', async (c) => {
   const body = await c.req.json()
-  const saving = await prisma.saving.create({ data: body })
+  
+  // Ensure date is a proper DateTime
+  const dateValue = body.date.includes('T') ? new Date(body.date) : new Date(body.date + 'T00:00:00.000Z')
+  
+  const saving = await prisma.saving.create({
+    data: {
+      userId: body.userId,
+      amount: body.amount,
+      goalName: body.goalName,
+      date: dateValue,
+      type: body.type,
+    },
+  })
   return c.json(saving, 201)
 })
 

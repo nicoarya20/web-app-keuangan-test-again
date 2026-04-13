@@ -52,16 +52,36 @@ router.get('/user/:userId/monthly-summary', async (c) => {
 // Create income
 router.post('/', async (c) => {
   const body = await c.req.json()
-  const income = await prisma.income.create({ data: body })
+  
+  // Ensure date is a proper DateTime
+  const dateValue = body.date.includes('T') ? new Date(body.date) : new Date(body.date + 'T00:00:00.000Z')
+  
+  const income = await prisma.income.create({
+    data: {
+      userId: body.userId,
+      amount: body.amount,
+      category: body.category,
+      date: dateValue,
+      recurring: body.recurring ?? false,
+      note: body.note,
+    },
+  })
   return c.json(income, 201)
 })
 
 // Update income
 router.patch('/:id', async (c) => {
   const body = await c.req.json()
+  
+  // Ensure date is a proper DateTime if provided
+  const data: Record<string, unknown> = { ...body }
+  if (body.date) {
+    data.date = body.date.includes('T') ? new Date(body.date) : new Date(body.date + 'T00:00:00.000Z')
+  }
+  
   const income = await prisma.income.update({
     where: { id: c.req.param('id') },
-    data: body,
+    data,
   })
   return c.json(income)
 })
