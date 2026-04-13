@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { useSession } from '../lib/auth';
+import { useSession } from '../../lib/auth';
 
 interface RequireAuthProps {
   children: ReactNode;
@@ -21,5 +21,5 @@ export function RequireAuth({ children }: RequireAuthProps) {
     return null;
   }
 
-  return children;
+  return <>{children}</>;
 }

@@ -22,14 +22,7 @@ declare module 'hono' {
  */
 export const authMiddleware = createMiddleware(async (c, next) => {
   try {
-    // Get session token from cookie
-    const sessionToken = c.req.cookie('better-auth.session_token')
-    
-    if (!sessionToken) {
-      return c.json({ error: 'Unauthorized: No session token' }, 401)
-    }
-
-    // Verify session with Better Auth
+    // Better Auth's getSession reads cookies from headers automatically
     const session = await auth.api.getSession({
       headers: c.req.raw.headers,
     })

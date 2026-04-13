@@ -8,7 +8,7 @@ const router = new Hono()
 router.use('*', authMiddleware)
 
 // Get all incomes for authenticated user
-router.get('/user/:userId', async (c) => {
+router.get('/', async (c) => {
   const user = c.get('user')
   const incomes = await prisma.income.findMany({
     where: { userId: user.id },
@@ -18,7 +18,7 @@ router.get('/user/:userId', async (c) => {
 })
 
 // Get monthly summary for authenticated user
-router.get('/user/:userId/monthly-summary', async (c) => {
+router.get('/monthly-summary', async (c) => {
   const user = c.get('user')
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)

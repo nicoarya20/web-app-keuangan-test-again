@@ -18,14 +18,14 @@ export default function LoginPage() {
       const result = await signIn.email({
         email,
         password,
-        callbackURL: '/dashboard',
+        callbackURL: '/',
       })
 
       if (result?.error) {
         toast.error(result.error.message || 'Login failed')
       } else {
         toast.success('Login successful!')
-        navigate('/dashboard')
+        navigate('/')
       }
     } catch (error) {
       console.error('Login error:', error)

@@ -9,8 +9,10 @@ import {
   Menu,
   X,
   Wallet,
+  User,
 } from 'lucide-react';
 import { cn } from '../components/ui/utils';
+import { useSession } from '../../lib/auth';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -19,6 +21,7 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
   const location = useLocation();
+  const { data: session } = useSession();
 
   const navItems = [
     { path: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -28,6 +31,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
     { path: '/savings', label: 'Savings', icon: PiggyBank },
     { path: '/wallet', label: 'Wallet', icon: Wallet },
   ];
+
+  const userName = session?.user?.name || 'User';
+  const userEmail = session?.user?.email || '';
+  const userInitial = userName.charAt(0).toUpperCase();
 
   return (
     <>
@@ -96,11 +103,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
           <div className="px-6 py-4 border-t border-gray-200">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center">
-                <span className="text-indigo-600 font-semibold">U</span>
+                <User className="w-5 h-5 text-indigo-600" />
               </div>
-              <div>
-                <p className="text-sm font-medium text-gray-900">User</p>
-                <p className="text-xs text-gray-500">user@email.com</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-gray-900 truncate">{userName}</p>
+                <p className="text-xs text-gray-500 truncate">{userEmail}</p>
               </div>
             </div>
           </div>
