@@ -1,5 +1,5 @@
 import { RouterProvider } from 'react-router';
-import { router } from './routes';
+import { router } from './routes.tsx';
 import { FinanceProvider } from './context/FinanceContext';
 import { useSession } from '../lib/auth';
 import { Toaster } from './components/ui/sonner';
