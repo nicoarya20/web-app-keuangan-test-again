@@ -1,0 +1,250 @@
+// ============================================================
+// Personal Finance App — Prisma Schema
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================
+// User (root entity — all data belongs to a user)
+// ============================================================
+model User {
+  id              String    @id
+  email           String    @unique
+  name            String?
+  emailVerified   Boolean   @default(false)
+  image           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  accounts        Account[]
+  sessions        Session[]
+  incomes         Income[]
+  expenses        Expense[]
+  wishlists       Wishlist[]
+  savings         Saving[]
+  wallets         Wallet[]
+  budgets         Budget[]
+
+  @@map("users")
+}
+
+// ============================================================
+// Session (Better Auth)
+// ============================================================
+model Session {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([token])
+  @@map("sessions")
+}
+
+// ============================================================
+// Account (OAuth, etc — Better Auth)
+// ============================================================
+model Account {
+  id                    String   @id
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId             String   @unique
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId])
+  @@map("accounts")
+}
+
+// ============================================================
+// Income
+// ============================================================
+model Income {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount    Int
+  category  String
+  date      DateTime
+  recurring Boolean  @default(false)
+  note      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([userId, category])
+  @@map("incomes")
+}
+
+// ============================================================
+// Expense
+// ============================================================
+model Expense {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount    Int
+  category  String
+  date      DateTime
+  note      String?
+  tags      String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@index([userId, category])
+  @@map("expenses")
+}
+
+// ============================================================
+// Wishlist (savings goals / items the user wants to buy)
+// ============================================================
+model Wishlist {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name            String
+  targetPrice     Int
+  currentProgress Int      @default(0)
+  priority        Priority @default(MEDIUM)
+  note            String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@map("wishlists")
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// ============================================================
+// Saving (one-off saving or investment entry)
+// ============================================================
+model Saving {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  amount    Int
+  goalName  String
+  date      DateTime
+  type      SavingType
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([userId, date])
+  @@index([userId, type])
+  @@map("savings")
+}
+
+enum SavingType {
+  SAVING
+  INVESTMENT
+}
+
+// ============================================================
+// Wallet (physical cash, e-wallet, bank account)
+// ============================================================
+model Wallet {
+  id              String              @id @default(cuid())
+  userId          String
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name            String
+  walletType      WalletType
+  initialBalance  Int
+  currentBalance  Int                @default(0)
+
+  transactions    WalletTransaction[]
+
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  @@index([userId])
+  @@index([userId, walletType])
+  @@map("wallets")
+}
+
+enum WalletType {
+  CASH
+  EWALLET
+  BANK
+}
+
+// ============================================================
+// WalletTransaction (top-up or expense for a specific wallet)
+// ============================================================
+model WalletTransaction {
+  id        String         @id @default(cuid())
+  walletId  String
+  wallet    Wallet         @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  type      WalletTxType
+  amount    Int
+  note      String?
+  date      DateTime
+
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([walletId, date])
+  @@index([walletId, type])
+  @@map("wallet_transactions")
+}
+
+enum WalletTxType {
+  TOPUP
+  EXPENSE
+}
+
+// ============================================================
+// Budget (monthly budget per category)
+// ============================================================
+model Budget {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  category  String
+  amount    Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, category])
+  @@index([userId])
+  @@map("budgets")
+}

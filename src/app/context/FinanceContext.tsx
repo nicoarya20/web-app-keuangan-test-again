@@ -1,292 +1,438 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { useSession } from '../../lib/auth'
+import { api } from '../../lib/api'
+import type {
+  Income as ApiIncome,
+  Expense as ApiExpense,
+  Wishlist as ApiWishlist,
+  Saving as ApiSaving,
+  Wallet as ApiWallet,
+  WalletTransaction as ApiWalletTransaction,
+  Budget as ApiBudget,
+} from '../../lib/api'
+
+// ============================================================
+// FRONTEND-FRIENDLY INTERFACES (matching existing page contracts)
+// ============================================================
 
 export interface Income {
-  id: string;
-  amount: number;
-  category: string;
-  date: string;
-  recurring: boolean;
-  note?: string;
+  id: string
+  amount: number
+  category: string
+  date: string
+  recurring: boolean
+  note?: string
 }
 
 export interface Expense {
-  id: string;
-  amount: number;
-  category: string;
-  date: string;
-  note?: string;
-  tags?: string[];
+  id: string
+  amount: number
+  category: string
+  date: string
+  note?: string
+  tags?: string[]
 }
 
 export interface WishlistItem {
-  id: string;
-  name: string;
-  targetPrice: number;
-  currentProgress: number;
-  priority: 'low' | 'medium' | 'high';
-  note?: string;
+  id: string
+  name: string
+  targetPrice: number
+  currentProgress: number
+  priority: 'low' | 'medium' | 'high'
+  note?: string
 }
 
 export interface Saving {
-  id: string;
-  amount: number;
-  goalName: string;
-  date: string;
-  type: 'saving' | 'investment';
+  id: string
+  amount: number
+  goalName: string
+  date: string
+  type: 'saving' | 'investment'
 }
+
+export interface WalletTransaction {
+  id: string
+  type: 'topup' | 'expense'
+  amount: number
+  note?: string
+  date: string
+}
+
+export interface Wallet {
+  id: string
+  name: string
+  walletType: 'cash' | 'ewallet' | 'bank'
+  initialBalance: number
+  currentBalance: number
+  transactions: WalletTransaction[]
+}
+
+// ============================================================
+// CONTEXT TYPE
+// ============================================================
 
 interface FinanceContextType {
-  incomes: Income[];
-  expenses: Expense[];
-  wishlist: WishlistItem[];
-  savings: Saving[];
-  addIncome: (income: Omit<Income, 'id'>) => void;
-  addExpense: (expense: Omit<Expense, 'id'>) => void;
-  addWishlistItem: (item: Omit<WishlistItem, 'id'>) => void;
-  addSaving: (saving: Omit<Saving, 'id'>) => void;
-  updateWishlistItem: (id: string, updates: Partial<WishlistItem>) => void;
-  deleteIncome: (id: string) => void;
-  deleteExpense: (id: string) => void;
-  deleteWishlistItem: (id: string) => void;
-  deleteSaving: (id: string) => void;
-  categoryBudgets: Record<string, number>;
-  setCategoryBudget: (category: string, budget: number) => void;
+  userId: string | null
+  incomes: Income[]
+  expenses: Expense[]
+  wishlist: WishlistItem[]
+  savings: Saving[]
+  wallets: Wallet[]
+  categoryBudgets: Record<string, number>
+  addIncome: (income: Omit<Income, 'id'>) => Promise<void>
+  addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>
+  addWishlistItem: (item: Omit<WishlistItem, 'id'>) => Promise<void>
+  addSaving: (saving: Omit<Saving, 'id'>) => Promise<void>
+  addWallet: (wallet: Omit<Wallet, 'id' | 'currentBalance' | 'transactions'>) => Promise<void>
+  addWalletTransaction: (walletId: string, tx: Omit<WalletTransaction, 'id'>) => Promise<void>
+  updateWishlistItem: (id: string, updates: Partial<WishlistItem>) => Promise<void>
+  deleteIncome: (id: string) => Promise<void>
+  deleteExpense: (id: string) => Promise<void>
+  deleteWishlistItem: (id: string) => Promise<void>
+  deleteSaving: (id: string) => Promise<void>
+  deleteWallet: (id: string) => Promise<void>
+  deleteWalletTransaction: (walletId: string, txId: string) => Promise<void>
+  setCategoryBudget: (category: string, budget: number) => Promise<void>
+  loading: boolean
+  error: string | null
 }
 
-const FinanceContext = createContext<FinanceContextType | undefined>(undefined);
+const FinanceContext = createContext<FinanceContextType | undefined>(undefined)
 
-const STORAGE_KEYS = {
-  incomes: 'finance_incomes',
-  expenses: 'finance_expenses',
-  wishlist: 'finance_wishlist',
-  savings: 'finance_savings',
-  budgets: 'finance_budgets',
-};
+// ============================================================
+// HELPERS — map between API types and frontend types
+// ============================================================
 
-export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [incomes, setIncomes] = useState<Income[]>(() => {
-    const stored = localStorage.getItem(STORAGE_KEYS.incomes);
-    if (stored) return JSON.parse(stored);
-    
-    // Demo data
-    const today = new Date();
-    return [
-      {
-        id: '1',
-        amount: 15000000,
-        category: 'Salary',
-        date: new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0],
-        recurring: true,
-        note: 'Monthly salary',
-      },
-      {
-        id: '2',
-        amount: 3000000,
-        category: 'Freelance',
-        date: new Date(today.getFullYear(), today.getMonth(), 15).toISOString().split('T')[0],
-        recurring: false,
-        note: 'Web design project',
-      },
-    ];
-  });
+function mapIncome(api: ApiIncome): Income {
+  return {
+    id: api.id,
+    amount: api.amount,
+    category: api.category,
+    date: api.date.split('T')[0],
+    recurring: api.recurring,
+    note: api.note || undefined,
+  }
+}
 
-  const [expenses, setExpenses] = useState<Expense[]>(() => {
-    const stored = localStorage.getItem(STORAGE_KEYS.expenses);
-    if (stored) return JSON.parse(stored);
-    
-    // Demo data
-    const today = new Date();
-    return [
-      {
-        id: '1',
-        amount: 500000,
-        category: 'Food & Dining',
-        date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1).toISOString().split('T')[0],
-        note: 'Groceries',
-        tags: ['food'],
-      },
-      {
-        id: '2',
-        amount: 200000,
-        category: 'Transportation',
-        date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 2).toISOString().split('T')[0],
-        note: 'Gas',
-        tags: ['car'],
-      },
-      {
-        id: '3',
-        amount: 1500000,
-        category: 'Bills & Utilities',
-        date: new Date(today.getFullYear(), today.getMonth(), 5).toISOString().split('T')[0],
-        note: 'Rent',
-      },
-      {
-        id: '4',
-        amount: 350000,
-        category: 'Entertainment',
-        date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 3).toISOString().split('T')[0],
-        note: 'Movie night',
-        tags: ['leisure'],
-      },
-    ];
-  });
+function mapExpense(api: ApiExpense): Expense {
+  return {
+    id: api.id,
+    amount: api.amount,
+    category: api.category,
+    date: api.date.split('T')[0],
+    note: api.note || undefined,
+    tags: api.tags || [],
+  }
+}
 
-  const [wishlist, setWishlist] = useState<WishlistItem[]>(() => {
-    const stored = localStorage.getItem(STORAGE_KEYS.wishlist);
-    if (stored) return JSON.parse(stored);
-    
-    // Demo data
-    return [
-      {
-        id: '1',
-        name: 'MacBook Pro M3',
-        targetPrice: 25000000,
-        currentProgress: 10000000,
-        priority: 'high',
-        note: 'Need for work and productivity',
-      },
-      {
-        id: '2',
-        name: 'Bali Vacation',
-        targetPrice: 8000000,
-        currentProgress: 3000000,
-        priority: 'medium',
-        note: 'Dream holiday with family',
-      },
-    ];
-  });
+function mapWishlist(api: ApiWishlist): WishlistItem {
+  return {
+    id: api.id,
+    name: api.name,
+    targetPrice: api.targetPrice,
+    currentProgress: api.currentProgress,
+    priority: api.priority.toLowerCase() as 'low' | 'medium' | 'high',
+    note: api.note || undefined,
+  }
+}
 
-  const [savings, setSavings] = useState<Saving[]>(() => {
-    const stored = localStorage.getItem(STORAGE_KEYS.savings);
-    if (stored) return JSON.parse(stored);
-    
-    // Demo data
-    const today = new Date();
-    return [
-      {
-        id: '1',
-        amount: 5000000,
-        goalName: 'Emergency Fund',
-        date: new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0],
-        type: 'saving',
-      },
-      {
-        id: '2',
-        amount: 3000000,
-        goalName: 'Stock Investment',
-        date: new Date(today.getFullYear(), today.getMonth(), 10).toISOString().split('T')[0],
-        type: 'investment',
-      },
-    ];
-  });
+function mapSaving(api: ApiSaving): Saving {
+  return {
+    id: api.id,
+    amount: api.amount,
+    goalName: api.goalName,
+    date: api.date.split('T')[0],
+    type: api.type.toLowerCase() as 'saving' | 'investment',
+  }
+}
 
-  const [categoryBudgets, setCategoryBudgets] = useState<Record<string, number>>(() => {
-    const stored = localStorage.getItem(STORAGE_KEYS.budgets);
-    if (stored) return JSON.parse(stored);
-    
-    // Demo budgets
-    return {
-      'Food & Dining': 2000000,
-      'Transportation': 1000000,
-      'Entertainment': 500000,
-    };
-  });
+function mapWallet(api: ApiWallet): Wallet {
+  return {
+    id: api.id,
+    name: api.name,
+    walletType: api.walletType.toLowerCase() as 'cash' | 'ewallet' | 'bank',
+    initialBalance: api.initialBalance,
+    currentBalance: api.currentBalance,
+    transactions: (api.transactions || []).map(mapWalletTransaction),
+  }
+}
 
+function mapWalletTransaction(api: ApiWalletTransaction): WalletTransaction {
+  return {
+    id: api.id,
+    type: api.type.toLowerCase() as 'topup' | 'expense',
+    amount: api.amount,
+    note: api.note || undefined,
+    date: api.date.split('T')[0],
+  }
+}
+
+function mapBudget(api: ApiBudget) {
+  return { category: api.category, amount: api.amount }
+}
+
+// ============================================================
+// PROVIDER
+// ============================================================
+
+interface AuthProviderProps {
+  children: React.ReactNode
+  session: { user: { id: string; email: string; name?: string } } | null
+}
+
+export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session }) => {
+  const userId = session?.user?.id ?? null
+  const [incomes, setIncomes] = useState<Income[]>([])
+  const [expenses, setExpenses] = useState<Expense[]>([])
+  const [wishlist, setWishlist] = useState<WishlistItem[]>([])
+  const [savings, setSavings] = useState<Saving[]>([])
+  const [wallets, setWallets] = useState<Wallet[]>([])
+  const [categoryBudgets, setCategoryBudgets] = useState<Record<string, number>>({})
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Fetch data when userId is available
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.incomes, JSON.stringify(incomes));
-  }, [incomes]);
+    if (!userId) {
+      setLoading(false)
+      return
+    }
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.expenses, JSON.stringify(expenses));
-  }, [expenses]);
+    let cancelled = false
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.wishlist, JSON.stringify(wishlist));
-  }, [wishlist]);
+    async function fetchData() {
+      try {
+        // Fetch all data in parallel
+        const [incomesRes, expensesRes, wishlistRes, savingsRes, walletsRes, budgetsRes] =
+          await Promise.all([
+            api.income.list(),
+            api.expense.list(),
+            api.wishlist.list(),
+            api.saving.list(),
+            api.wallet.list(),
+            api.budget.list(),
+          ])
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.savings, JSON.stringify(savings));
-  }, [savings]);
+        if (cancelled) return
+        setIncomes(incomesRes.map(mapIncome))
+        setExpenses(expensesRes.map(mapExpense))
+        setWishlist(wishlistRes.map(mapWishlist))
+        setSavings(savingsRes.map(mapSaving))
+        setWallets(walletsRes.map(mapWallet))
+        const budgetMap: Record<string, number> = {}
+        budgetsRes.forEach((b) => {
+          const mapped = mapBudget(b)
+          budgetMap[mapped.category] = mapped.amount
+        })
+        setCategoryBudgets(budgetMap)
+      } catch (err) {
+        if (cancelled) return
+        const msg = err instanceof Error ? err.message : 'Failed to load data'
+        setError(msg)
+        console.error('[FinanceContext] Fetch error:', msg)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
 
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.budgets, JSON.stringify(categoryBudgets));
-  }, [categoryBudgets]);
+    fetchData()
+    return () => { cancelled = true }
+  }, [userId])
 
-  const addIncome = (income: Omit<Income, 'id'>) => {
-    const newIncome = { ...income, id: Date.now().toString() };
-    setIncomes((prev) => [newIncome, ...prev]);
-  };
+  // CRUD Operations
+  const addIncome = useCallback(
+    async (income: Omit<Income, 'id'>) => {
+      const created = await api.income.create({
+        amount: income.amount,
+        category: income.category,
+        date: income.date,
+        recurring: income.recurring,
+        note: income.note,
+      })
+      setIncomes((prev) => [mapIncome(created), ...prev])
+    },
+    []
+  )
 
-  const addExpense = (expense: Omit<Expense, 'id'>) => {
-    const newExpense = { ...expense, id: Date.now().toString() };
-    setExpenses((prev) => [newExpense, ...prev]);
-  };
+  const addExpense = useCallback(
+    async (expense: Omit<Expense, 'id'>) => {
+      const created = await api.expense.create({
+        amount: expense.amount,
+        category: expense.category,
+        date: expense.date,
+        note: expense.note,
+        tags: expense.tags,
+      })
+      setExpenses((prev) => [mapExpense(created), ...prev])
+    },
+    []
+  )
 
-  const addWishlistItem = (item: Omit<WishlistItem, 'id'>) => {
-    const newItem = { ...item, id: Date.now().toString() };
-    setWishlist((prev) => [newItem, ...prev]);
-  };
+  const addWishlistItem = useCallback(
+    async (item: Omit<WishlistItem, 'id'>) => {
+      const created = await api.wishlist.create({
+        name: item.name,
+        targetPrice: item.targetPrice,
+        currentProgress: item.currentProgress,
+        priority: item.priority.toUpperCase() as 'LOW' | 'MEDIUM' | 'HIGH',
+        note: item.note,
+      })
+      setWishlist((prev) => [mapWishlist(created), ...prev])
+    },
+    []
+  )
 
-  const addSaving = (saving: Omit<Saving, 'id'>) => {
-    const newSaving = { ...saving, id: Date.now().toString() };
-    setSavings((prev) => [newSaving, ...prev]);
-  };
+  const addSaving = useCallback(
+    async (saving: Omit<Saving, 'id'>) => {
+      const created = await api.saving.create({
+        amount: saving.amount,
+        goalName: saving.goalName,
+        date: saving.date,
+        type: saving.type.toUpperCase() as 'SAVING' | 'INVESTMENT',
+      })
+      setSavings((prev) => [mapSaving(created), ...prev])
+    },
+    []
+  )
 
-  const updateWishlistItem = (id: string, updates: Partial<WishlistItem>) => {
-    setWishlist((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, ...updates } : item))
-    );
-  };
+  const addWallet = useCallback(
+    async (wallet: Omit<Wallet, 'id' | 'currentBalance' | 'transactions'>) => {
+      const created = await api.wallet.create({
+        name: wallet.name,
+        walletType: wallet.walletType.toUpperCase() as 'CASH' | 'EWALLET' | 'BANK',
+        initialBalance: wallet.initialBalance,
+      })
+      setWallets((prev) => [...prev, mapWallet(created)])
+    },
+    []
+  )
 
-  const deleteIncome = (id: string) => {
-    setIncomes((prev) => prev.filter((item) => item.id !== id));
-  };
+  const addWalletTransaction = useCallback(
+    async (walletId: string, tx: Omit<WalletTransaction, 'id'>) => {
+      const result = await api.walletTx.create({
+        walletId,
+        type: tx.type.toUpperCase() as 'TOPUP' | 'EXPENSE',
+        amount: tx.amount,
+        note: tx.note,
+        date: tx.date,
+      })
+      setWallets((prev) =>
+        prev.map((w) => (w.id === walletId ? mapWallet(result.wallet) : w))
+      )
+    },
+    []
+  )
 
-  const deleteExpense = (id: string) => {
-    setExpenses((prev) => prev.filter((item) => item.id !== id));
-  };
+  const updateWishlistItem = useCallback(
+    async (id: string, updates: Partial<WishlistItem>) => {
+      const apiUpdates: Record<string, unknown> = { ...updates }
+      if (updates.priority) {
+        apiUpdates.priority = updates.priority.toUpperCase()
+      }
+      const updated = await api.wishlist.update(id, apiUpdates)
+      setWishlist((prev) =>
+        prev.map((item) => (item.id === id ? mapWishlist(updated) : item))
+      )
+    },
+    []
+  )
 
-  const deleteWishlistItem = (id: string) => {
-    setWishlist((prev) => prev.filter((item) => item.id !== id));
-  };
+  const deleteIncome = useCallback(
+    async (id: string) => {
+      await api.income.delete(id)
+      setIncomes((prev) => prev.filter((item) => item.id !== id))
+    },
+    []
+  )
 
-  const deleteSaving = (id: string) => {
-    setSavings((prev) => prev.filter((item) => item.id !== id));
-  };
+  const deleteExpense = useCallback(
+    async (id: string) => {
+      await api.expense.delete(id)
+      setExpenses((prev) => prev.filter((item) => item.id !== id))
+    },
+    []
+  )
 
-  const setCategoryBudget = (category: string, budget: number) => {
-    setCategoryBudgets((prev) => ({ ...prev, [category]: budget }));
-  };
+  const deleteWishlistItem = useCallback(
+    async (id: string) => {
+      await api.wishlist.delete(id)
+      setWishlist((prev) => prev.filter((item) => item.id !== id))
+    },
+    []
+  )
+
+  const deleteSaving = useCallback(
+    async (id: string) => {
+      await api.saving.delete(id)
+      setSavings((prev) => prev.filter((item) => item.id !== id))
+    },
+    []
+  )
+
+  const deleteWallet = useCallback(
+    async (id: string) => {
+      await api.wallet.delete(id)
+      setWallets((prev) => prev.filter((w) => w.id !== id))
+    },
+    []
+  )
+
+  const deleteWalletTransaction = useCallback(
+    async (_walletId: string, txId: string) => {
+      await api.walletTx.delete(txId)
+      // Refresh wallets to get updated balances
+      if (!userId) return
+      const walletsRes = await api.wallet.list(userId)
+      setWallets(walletsRes.map(mapWallet))
+    },
+    [userId]
+  )
+
+  const setCategoryBudget = useCallback(
+    async (category: string, budget: number) => {
+      await api.budget.create({ category, amount: budget })
+      setCategoryBudgets((prev) => ({ ...prev, [category]: budget }))
+    },
+    []
+  )
 
   return (
     <FinanceContext.Provider
       value={{
+        userId,
         incomes,
         expenses,
         wishlist,
         savings,
+        wallets,
+        categoryBudgets,
         addIncome,
         addExpense,
         addWishlistItem,
         addSaving,
+        addWallet,
+        addWalletTransaction,
         updateWishlistItem,
         deleteIncome,
         deleteExpense,
         deleteWishlistItem,
         deleteSaving,
-        categoryBudgets,
+        deleteWallet,
+        deleteWalletTransaction,
         setCategoryBudget,
+        loading,
+        error,
       }}
     >
       {children}
     </FinanceContext.Provider>
-  );
-};
+  )
+}
 
 export const useFinance = () => {
-  const context = useContext(FinanceContext);
+  const context = useContext(FinanceContext)
   if (context === undefined) {
-    throw new Error('useFinance must be used within a FinanceProvider');
+    throw new Error('useFinance must be used within a FinanceProvider')
   }
-  return context;
-};
+  return context
+}

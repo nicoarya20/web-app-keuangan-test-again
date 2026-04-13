@@ -15,7 +15,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseIS
 import { PageTransition } from '../components/PageTransition';
 
 export const Dashboard: React.FC = () => {
-  const { incomes, expenses, savings, categoryBudgets } = useFinance();
+  const { incomes, expenses, savings, wallets, categoryBudgets } = useFinance();
 
   // Calculate totals
   const currentMonth = new Date();
@@ -35,6 +35,7 @@ export const Dashboard: React.FC = () => {
   const totalIncome = monthlyIncomes.reduce((sum, income) => sum + income.amount, 0);
   const totalExpense = monthlyExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   const totalSavings = savings.reduce((sum, saving) => sum + saving.amount, 0);
+  const totalWalletBalance = wallets.reduce((sum, w) => sum + w.currentBalance, 0);
   const balance = totalIncome - totalExpense;
   const savingRate = totalIncome > 0 ? ((balance / totalIncome) * 100).toFixed(1) : '0';
 
@@ -98,9 +99,9 @@ export const Dashboard: React.FC = () => {
               <div>
                 <p className="text-sm text-gray-600">Total Balance</p>
                 <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-                  Rp {balance.toLocaleString('id-ID')}
+                  Rp {totalWalletBalance.toLocaleString('id-ID')}
                 </p>
-                <p className="text-xs text-gray-500 mt-2">This month</p>
+                <p className="text-xs text-gray-500 mt-2">{wallets.length} dompet aktif</p>
               </div>
               <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
                 <Wallet className="w-5 h-5 text-indigo-600" />
