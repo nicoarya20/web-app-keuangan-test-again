@@ -1,11 +1,15 @@
 import { Hono } from 'hono'
 import { prisma } from '../lib/prisma'
+import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
 
+router.use('*', authMiddleware)
+
 // Get full dashboard data for a user
-router.get('/user/:userId', async (c) => {
-  const { userId } = c.req.param()
+router.get('/', async (c) => {
+  const user = c.get('user')
+  const userId = user.id
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
@@ -80,8 +84,9 @@ router.get('/user/:userId', async (c) => {
 })
 
 // Get cashflow data (last 7 days)
-router.get('/user/:userId/cashflow', async (c) => {
-  const { userId } = c.req.param()
+router.get('/cashflow', async (c) => {
+  const user = c.get('user')
+  const userId = user.id
   const today = new Date()
   const sevenDaysAgo = new Date(today)
   sevenDaysAgo.setDate(today.getDate() - 6)

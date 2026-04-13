@@ -1,37 +1,41 @@
 import { Hono } from 'hono'
 import { prisma } from '../lib/prisma'
+import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
 
-// Get all incomes for a user
+// All routes require authentication
+router.use('*', authMiddleware)
+
+// Get all incomes for authenticated user
 router.get('/user/:userId', async (c) => {
-  const { userId } = c.req.param()
+  const user = c.get('user')
   const incomes = await prisma.income.findMany({
-    where: { userId },
+    where: { userId: user.id },
     orderBy: { date: 'desc' },
   })
   return c.json(incomes)
 })
 
-// Get monthly summary for a user
+// Get monthly summary for authenticated user
 router.get('/user/:userId/monthly-summary', async (c) => {
-  const { userId } = c.req.param()
+  const user = c.get('user')
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
 
   const [totalIncome, recurringIncome, categoryBreakdown] = await Promise.all([
     prisma.income.aggregate({
-      where: { userId, date: { gte: startOfMonth, lte: endOfMonth } },
+      where: { userId: user.id, date: { gte: startOfMonth, lte: endOfMonth } },
       _sum: { amount: true },
     }),
     prisma.income.aggregate({
-      where: { userId, recurring: true, date: { gte: startOfMonth, lte: endOfMonth } },
+      where: { userId: user.id, recurring: true, date: { gte: startOfMonth, lte: endOfMonth } },
       _sum: { amount: true },
     }),
     prisma.income.groupBy({
       by: ['category'],
-      where: { userId, date: { gte: startOfMonth, lte: endOfMonth } },
+      where: { userId: user.id, date: { gte: startOfMonth, lte: endOfMonth } },
       _sum: { amount: true },
       _count: true,
       orderBy: { _sum: { amount: 'desc' } },
@@ -52,13 +56,14 @@ router.get('/user/:userId/monthly-summary', async (c) => {
 // Create income
 router.post('/', async (c) => {
   const body = await c.req.json()
+  const user = c.get('user')
   
   // Ensure date is a proper DateTime
   const dateValue = body.date.includes('T') ? new Date(body.date) : new Date(body.date + 'T00:00:00.000Z')
   
   const income = await prisma.income.create({
     data: {
-      userId: body.userId,
+      userId: user.id,
       amount: body.amount,
       category: body.category,
       date: dateValue,

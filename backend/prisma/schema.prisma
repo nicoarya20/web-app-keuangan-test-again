@@ -16,12 +16,16 @@ datasource db {
 // User (root entity — all data belongs to a user)
 // ============================================================
 model User {
-  id              String    @id @default(cuid())
+  id              String    @id
   email           String    @unique
   name            String?
+  emailVerified   Boolean   @default(false)
+  image           String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
+  accounts        Account[]
+  sessions        Session[]
   incomes         Income[]
   expenses        Expense[]
   wishlists       Wishlist[]
@@ -30,6 +34,46 @@ model User {
   budgets         Budget[]
 
   @@map("users")
+}
+
+// ============================================================
+// Session (Better Auth)
+// ============================================================
+model Session {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([token])
+  @@map("sessions")
+}
+
+// ============================================================
+// Account (OAuth, etc — Better Auth)
+// ============================================================
+model Account {
+  id                    String   @id
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accountId             String   @unique
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([userId])
+  @@map("accounts")
 }
 
 // ============================================================

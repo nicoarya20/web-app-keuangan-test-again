@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { useSession } from '../../lib/auth'
 import { api } from '../../lib/api'
 import type {
   Income as ApiIncome,
@@ -171,27 +172,16 @@ function mapBudget(api: ApiBudget) {
 }
 
 // ============================================================
-// USER INITIALIZATION
-// ============================================================
-
-const USER_STORAGE_KEY = 'finance_user_id'
-
-async function getOrCreateUser(): Promise<string> {
-  const stored = localStorage.getItem(USER_STORAGE_KEY)
-  if (stored) return stored
-
-  const demoEmail = `user_${Date.now()}@demo.local`
-  const user = await api.user.create({ email: demoEmail, name: 'Demo User' })
-  localStorage.setItem(USER_STORAGE_KEY, user.id)
-  return user.id
-}
-
-// ============================================================
 // PROVIDER
 // ============================================================
 
-export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [userId, setUserId] = useState<string | null>(null)
+interface AuthProviderProps {
+  children: React.ReactNode
+  session: { user: { id: string; email: string; name?: string } } | null
+}
+
+export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session }) => {
+  const userId = session?.user?.id ?? null
   const [incomes, setIncomes] = useState<Income[]>([])
   const [expenses, setExpenses] = useState<Expense[]>([])
   const [wishlist, setWishlist] = useState<WishlistItem[]>([])
@@ -201,25 +191,26 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Initialize user and fetch data
+  // Fetch data when userId is available
   useEffect(() => {
+    if (!userId) {
+      setLoading(false)
+      return
+    }
+
     let cancelled = false
 
-    async function init() {
+    async function fetchData() {
       try {
-        const uid = await getOrCreateUser()
-        if (cancelled) return
-        setUserId(uid)
-
         // Fetch all data in parallel
         const [incomesRes, expensesRes, wishlistRes, savingsRes, walletsRes, budgetsRes] =
           await Promise.all([
-            api.income.list(uid),
-            api.expense.list(uid),
-            api.wishlist.list(uid),
-            api.saving.list(uid),
-            api.wallet.list(uid),
-            api.budget.list(uid),
+            api.income.list(),
+            api.expense.list(),
+            api.wishlist.list(),
+            api.saving.list(),
+            api.wallet.list(),
+            api.budget.list(),
           ])
 
         if (cancelled) return
@@ -238,22 +229,20 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (cancelled) return
         const msg = err instanceof Error ? err.message : 'Failed to load data'
         setError(msg)
-        console.error('[FinanceContext] Init error:', msg)
+        console.error('[FinanceContext] Fetch error:', msg)
       } finally {
         if (!cancelled) setLoading(false)
       }
     }
 
-    init()
+    fetchData()
     return () => { cancelled = true }
-  }, [])
+  }, [userId])
 
   // CRUD Operations
   const addIncome = useCallback(
     async (income: Omit<Income, 'id'>) => {
-      if (!userId) return
       const created = await api.income.create({
-        userId,
         amount: income.amount,
         category: income.category,
         date: income.date,
@@ -262,14 +251,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
       setIncomes((prev) => [mapIncome(created), ...prev])
     },
-    [userId]
+    []
   )
 
   const addExpense = useCallback(
     async (expense: Omit<Expense, 'id'>) => {
-      if (!userId) return
       const created = await api.expense.create({
-        userId,
         amount: expense.amount,
         category: expense.category,
         date: expense.date,
@@ -278,14 +265,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
       setExpenses((prev) => [mapExpense(created), ...prev])
     },
-    [userId]
+    []
   )
 
   const addWishlistItem = useCallback(
     async (item: Omit<WishlistItem, 'id'>) => {
-      if (!userId) return
       const created = await api.wishlist.create({
-        userId,
         name: item.name,
         targetPrice: item.targetPrice,
         currentProgress: item.currentProgress,
@@ -294,14 +279,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
       setWishlist((prev) => [mapWishlist(created), ...prev])
     },
-    [userId]
+    []
   )
 
   const addSaving = useCallback(
     async (saving: Omit<Saving, 'id'>) => {
-      if (!userId) return
       const created = await api.saving.create({
-        userId,
         amount: saving.amount,
         goalName: saving.goalName,
         date: saving.date,
@@ -309,21 +292,19 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
       setSavings((prev) => [mapSaving(created), ...prev])
     },
-    [userId]
+    []
   )
 
   const addWallet = useCallback(
     async (wallet: Omit<Wallet, 'id' | 'currentBalance' | 'transactions'>) => {
-      if (!userId) return
       const created = await api.wallet.create({
-        userId,
         name: wallet.name,
         walletType: wallet.walletType.toUpperCase() as 'CASH' | 'EWALLET' | 'BANK',
         initialBalance: wallet.initialBalance,
       })
       setWallets((prev) => [...prev, mapWallet(created)])
     },
-    [userId]
+    []
   )
 
   const addWalletTransaction = useCallback(
@@ -409,11 +390,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const setCategoryBudget = useCallback(
     async (category: string, budget: number) => {
-      if (!userId) return
-      await api.budget.create({ userId, category, amount: budget })
+      await api.budget.create({ category, amount: budget })
       setCategoryBudgets((prev) => ({ ...prev, [category]: budget }))
     },
-    [userId]
+    []
   )
 
   return (

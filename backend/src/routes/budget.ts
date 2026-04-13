@@ -1,31 +1,34 @@
 import { Hono } from 'hono'
 import { prisma } from '../lib/prisma'
+import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
 
+router.use('*', authMiddleware)
+
 // Get all budgets for a user
-router.get('/user/:userId', async (c) => {
-  const { userId } = c.req.param()
+router.get('/', async (c) => {
+  const user = c.get('user')
   const budgets = await prisma.budget.findMany({
-    where: { userId },
+    where: { userId: user.id },
   })
   return c.json(budgets)
 })
 
 // Get budget progress (budget vs actual spending this month)
-router.get('/user/:userId/progress', async (c) => {
-  const { userId } = c.req.param()
+router.get('/progress', async (c) => {
+  const user = c.get('user')
   const now = new Date()
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
   const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
 
-  const budgets = await prisma.budget.findMany({ where: { userId } })
+  const budgets = await prisma.budget.findMany({ where: { userId: user.id } })
 
   const progress = await Promise.all(
     budgets.map(async (budget) => {
       const spent = await prisma.expense.aggregate({
         where: {
-          userId,
+          userId: user.id,
           category: budget.category,
           date: { gte: startOfMonth, lte: endOfMonth },
         },
@@ -53,15 +56,20 @@ router.get('/user/:userId/progress', async (c) => {
 // Create or update budget (upsert by userId + category)
 router.post('/', async (c) => {
   const body = await c.req.json()
+  const user = c.get('user')
   const budget = await prisma.budget.upsert({
     where: {
       userId_category: {
-        userId: body.userId,
+        userId: user.id,
         category: body.category,
       },
     },
     update: { amount: body.amount },
-    create: body,
+    create: {
+      userId: user.id,
+      category: body.category,
+      amount: body.amount,
+    },
   })
   return c.json(budget)
 })

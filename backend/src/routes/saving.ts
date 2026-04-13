@@ -1,38 +1,41 @@
 import { Hono } from 'hono'
 import { prisma } from '../lib/prisma'
+import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
 
+router.use('*', authMiddleware)
+
 // Get all savings for a user
-router.get('/user/:userId', async (c) => {
-  const { userId } = c.req.param()
+router.get('/', async (c) => {
+  const user = c.get('user')
   const savings = await prisma.saving.findMany({
-    where: { userId },
+    where: { userId: user.id },
     orderBy: { date: 'asc' },
   })
   return c.json(savings)
 })
 
 // Get savings summary with growth data
-router.get('/user/:userId/summary', async (c) => {
-  const { userId } = c.req.param()
+router.get('/summary', async (c) => {
+  const user = c.get('user')
 
   const [totalSavings, totalInvestments, goalBreakdown, growthData] = await Promise.all([
     prisma.saving.aggregate({
-      where: { userId, type: 'SAVING' },
+      where: { userId: user.id, type: 'SAVING' },
       _sum: { amount: true },
     }),
     prisma.saving.aggregate({
-      where: { userId, type: 'INVESTMENT' },
+      where: { userId: user.id, type: 'INVESTMENT' },
       _sum: { amount: true },
     }),
     prisma.saving.groupBy({
       by: ['goalName'],
-      where: { userId },
+      where: { userId: user.id },
       _sum: { amount: true },
     }),
     prisma.saving.findMany({
-      where: { userId },
+      where: { userId: user.id },
       orderBy: { date: 'asc' },
     }),
   ])
@@ -59,13 +62,14 @@ router.get('/user/:userId/summary', async (c) => {
 // Create saving
 router.post('/', async (c) => {
   const body = await c.req.json()
-  
+  const user = c.get('user')
+
   // Ensure date is a proper DateTime
   const dateValue = body.date.includes('T') ? new Date(body.date) : new Date(body.date + 'T00:00:00.000Z')
-  
+
   const saving = await prisma.saving.create({
     data: {
-      userId: body.userId,
+      userId: user.id,
       amount: body.amount,
       goalName: body.goalName,
       date: dateValue,

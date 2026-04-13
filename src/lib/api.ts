@@ -3,6 +3,7 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { 'Content-Type': 'application/json' },
+    credentials: 'include', // Include cookies for auth
     ...options,
   })
 
@@ -178,10 +179,10 @@ export const api = {
 
   // --- INCOME ---
   income: {
-    list: (userId: string) => request<Income[]>(`/incomes/user/${userId}`),
-    monthlySummary: (userId: string) =>
-      request<IncomeMonthlySummary>(`/incomes/user/${userId}/monthly-summary`),
-    create: (data: { userId: string; amount: number; category: string; date: string; recurring: boolean; note?: string }) =>
+    list: () => request<Income[]>('/incomes'),
+    monthlySummary: () =>
+      request<IncomeMonthlySummary>('/incomes/monthly-summary'),
+    create: (data: { amount: number; category: string; date: string; recurring: boolean; note?: string }) =>
       request<Income>('/incomes', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<Income>) =>
       request<Income>(`/incomes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -191,10 +192,10 @@ export const api = {
 
   // --- EXPENSE ---
   expense: {
-    list: (userId: string) => request<Expense[]>(`/expenses/user/${userId}`),
-    monthlySummary: (userId: string) =>
-      request<ExpenseMonthlySummary>(`/expenses/user/${userId}/monthly-summary`),
-    create: (data: { userId: string; amount: number; category: string; date: string; note?: string; tags?: string[] }) =>
+    list: () => request<Expense[]>('/expenses'),
+    monthlySummary: () =>
+      request<ExpenseMonthlySummary>('/expenses/monthly-summary'),
+    create: (data: { amount: number; category: string; date: string; note?: string; tags?: string[] }) =>
       request<Expense>('/expenses', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<Expense>) =>
       request<Expense>(`/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -204,10 +205,10 @@ export const api = {
 
   // --- WALLET ---
   wallet: {
-    list: (userId: string) => request<Wallet[]>(`/wallets/user/${userId}`),
-    totalBalance: (userId: string) =>
-      request<WalletTotalBalance>(`/wallets/user/${userId}/total-balance`),
-    create: (data: { userId: string; name: string; walletType: 'CASH' | 'EWALLET' | 'BANK'; initialBalance: number }) =>
+    list: () => request<Wallet[]>('/wallets'),
+    totalBalance: () =>
+      request<WalletTotalBalance>('/wallets/total-balance'),
+    create: (data: { name: string; walletType: 'CASH' | 'EWALLET' | 'BANK'; initialBalance: number }) =>
       request<Wallet>('/wallets', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<Wallet>) =>
       request<Wallet>(`/wallets/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -228,10 +229,10 @@ export const api = {
 
   // --- SAVING ---
   saving: {
-    list: (userId: string) => request<Saving[]>(`/savings/user/${userId}`),
-    summary: (userId: string) =>
-      request<SavingsSummary>(`/savings/user/${userId}/summary`),
-    create: (data: { userId: string; amount: number; goalName: string; date: string; type: 'SAVING' | 'INVESTMENT' }) =>
+    list: () => request<Saving[]>('/savings'),
+    summary: () =>
+      request<SavingsSummary>('/savings/summary'),
+    create: (data: { amount: number; goalName: string; date: string; type: 'SAVING' | 'INVESTMENT' }) =>
       request<Saving>('/savings', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: string) =>
       request<{ success: boolean }>(`/savings/${id}`, { method: 'DELETE' }),
@@ -239,10 +240,10 @@ export const api = {
 
   // --- WISHLIST ---
   wishlist: {
-    list: (userId: string) => request<Wishlist[]>(`/wishlists/user/${userId}`),
-    summary: (userId: string) =>
-      request<WishlistSummary>(`/wishlists/user/${userId}/summary`),
-    create: (data: { userId: string; name: string; targetPrice: number; currentProgress: number; priority: 'LOW' | 'MEDIUM' | 'HIGH'; note?: string }) =>
+    list: () => request<Wishlist[]>('/wishlists'),
+    summary: () =>
+      request<WishlistSummary>('/wishlists/summary'),
+    create: (data: { name: string; targetPrice: number; currentProgress: number; priority: 'LOW' | 'MEDIUM' | 'HIGH'; note?: string }) =>
       request<Wishlist>('/wishlists', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<Wishlist>) =>
       request<Wishlist>(`/wishlists/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -252,10 +253,10 @@ export const api = {
 
   // --- BUDGET ---
   budget: {
-    list: (userId: string) => request<Budget[]>(`/budgets/user/${userId}`),
-    progress: (userId: string) =>
-      request<BudgetProgress[]>(`/budgets/user/${userId}/progress`),
-    create: (data: { userId: string; category: string; amount: number }) =>
+    list: () => request<Budget[]>('/budgets'),
+    progress: () =>
+      request<BudgetProgress[]>('/budgets/progress'),
+    create: (data: { category: string; amount: number }) =>
       request<Budget>('/budgets', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: string) =>
       request<{ success: boolean }>(`/budgets/${id}`, { method: 'DELETE' }),
@@ -263,9 +264,9 @@ export const api = {
 
   // --- DASHBOARD ---
   dashboard: {
-    get: (userId: string) =>
-      request<DashboardData>(`/dashboard/user/${userId}`),
-    cashflow: (userId: string) =>
-      request<CashflowDay[]>(`/dashboard/user/${userId}/cashflow`),
+    get: () =>
+      request<DashboardData>('/dashboard'),
+    cashflow: () =>
+      request<CashflowDay[]>('/dashboard/cashflow'),
   },
 }

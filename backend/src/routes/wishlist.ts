@@ -1,30 +1,33 @@
 import { Hono } from 'hono'
 import { prisma } from '../lib/prisma'
+import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
 
+router.use('*', authMiddleware)
+
 // Get all wishlists for a user
-router.get('/user/:userId', async (c) => {
-  const { userId } = c.req.param()
+router.get('/', async (c) => {
+  const user = c.get('user')
   const wishlists = await prisma.wishlist.findMany({
-    where: { userId },
+    where: { userId: user.id },
     orderBy: { createdAt: 'desc' },
   })
   return c.json(wishlists)
 })
 
 // Get wishlist summary
-router.get('/user/:userId/summary', async (c) => {
-  const { userId } = c.req.param()
+router.get('/summary', async (c) => {
+  const user = c.get('user')
 
   const [totalTarget, totalSaved] = await Promise.all([
     prisma.wishlist.aggregate({
-      where: { userId },
+      where: { userId: user.id },
       _sum: { targetPrice: true },
       _count: true,
     }),
     prisma.wishlist.aggregate({
-      where: { userId },
+      where: { userId: user.id },
       _sum: { currentProgress: true },
     }),
   ])
@@ -43,7 +46,13 @@ router.get('/user/:userId/summary', async (c) => {
 // Create wishlist
 router.post('/', async (c) => {
   const body = await c.req.json()
-  const wishlist = await prisma.wishlist.create({ data: body })
+  const user = c.get('user')
+  const wishlist = await prisma.wishlist.create({
+    data: {
+      ...body,
+      userId: user.id,
+    },
+  })
   return c.json(wishlist, 201)
 })
 

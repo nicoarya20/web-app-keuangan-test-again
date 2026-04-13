@@ -1,17 +1,20 @@
 import { Hono } from 'hono'
 import { prisma } from '../lib/prisma'
+import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
+
+router.use('*', authMiddleware)
 
 // ============================================================
 // WALLETS
 // ============================================================
 
 // Get all wallets for a user (with transactions)
-router.get('/user/:userId', async (c) => {
-  const { userId } = c.req.param()
+router.get('/', async (c) => {
+  const user = c.get('user')
   const wallets = await prisma.wallet.findMany({
-    where: { userId },
+    where: { userId: user.id },
     include: {
       transactions: {
         orderBy: { date: 'desc' },
@@ -22,10 +25,10 @@ router.get('/user/:userId', async (c) => {
 })
 
 // Get total balance across all wallets
-router.get('/user/:userId/total-balance', async (c) => {
-  const { userId } = c.req.param()
+router.get('/total-balance', async (c) => {
+  const user = c.get('user')
   const result = await prisma.wallet.aggregate({
-    where: { userId },
+    where: { userId: user.id },
     _sum: { currentBalance: true },
     _count: true,
   })
@@ -38,9 +41,11 @@ router.get('/user/:userId/total-balance', async (c) => {
 // Create wallet
 router.post('/', async (c) => {
   const body = await c.req.json()
+  const user = c.get('user')
   const wallet = await prisma.wallet.create({
     data: {
       ...body,
+      userId: user.id,
       currentBalance: body.initialBalance ?? 0,
     },
   })
@@ -70,7 +75,14 @@ router.delete('/:id', async (c) => {
 // Create transaction + update balance atomically
 router.post('/transactions', async (c) => {
   const body = await c.req.json()
+  const user = c.get('user')
   const { walletId, type, amount, note, date } = body
+
+  // Verify wallet belongs to user
+  const wallet = await prisma.wallet.findUnique({ where: { id: walletId } })
+  if (!wallet || wallet.userId !== user.id) {
+    return c.json({ error: 'Wallet not found' }, 404)
+  }
 
   // Ensure date is a proper DateTime
   const dateValue = date.includes('T') ? new Date(date) : new Date(date + 'T00:00:00.000Z')
