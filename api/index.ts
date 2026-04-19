@@ -3,16 +3,16 @@ import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { handle } from 'hono/vercel'
 
-import { errorHandler } from './middleware/errorHandler'
-import authRoutes from './routes/auth'
-import userRoutes from './routes/user'
-import incomeRoutes from './routes/income'
-import expenseRoutes from './routes/expense'
-import walletRoutes from './routes/wallet'
-import savingRoutes from './routes/saving'
-import wishlistRoutes from './routes/wishlist'
-import budgetRoutes from './routes/budget'
-import dashboardRoutes from './routes/dashboard'
+import { errorHandler } from './_backend/middleware/errorHandler'
+import authRoutes from './_backend/routes/auth'
+import userRoutes from './_backend/routes/user'
+import incomeRoutes from './_backend/routes/income'
+import expenseRoutes from './_backend/routes/expense'
+import walletRoutes from './_backend/routes/wallet'
+import savingRoutes from './_backend/routes/saving'
+import wishlistRoutes from './_backend/routes/wishlist'
+import budgetRoutes from './_backend/routes/budget'
+import dashboardRoutes from './_backend/routes/dashboard'
 
 const app = new Hono()
 
@@ -43,8 +43,8 @@ app.use('*', errorHandler)
 // HEALTH CHECK
 // ============================================================
 app.get('/', (c) => c.json({
-  message: '🚀 Backend Web-App Keuangan (Vercel-Unified)',
-  version: '1.0.2',
+  message: '🚀 Backend Web-App Keuangan (Vercel-Monolith)',
+  version: '1.0.3',
 }))
 
 // ============================================================
