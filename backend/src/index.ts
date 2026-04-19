@@ -1,4 +1,3 @@
-import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
@@ -20,8 +19,17 @@ const app = new Hono()
 // GLOBAL MIDDLEWARE
 // ============================================================
 app.use('*', logger())
+
+// Build allowed origins from environment variables
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
+  ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
+].filter((origin, index, self) => self.indexOf(origin) === index) // deduplicate
+
 app.use('/*', cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  origin: allowedOrigins,
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization', 'Cookie'],
   credentials: true,
@@ -64,12 +72,18 @@ app.route('/api/budgets', budgetRoutes)
 app.route('/api/dashboard', dashboardRoutes)
 
 // ============================================================
-// START SERVER
+// EXPORT AND START SERVER
 // ============================================================
-const port = Number(process.env.PORT) || 3000
+const port = 3000
 
-serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`🚀 Server running at http://localhost:${info.port}`)
-})
+if (process.env.NODE_ENV !== 'production') {
+  import('@hono/node-server').then(({ serve }) => {
+    console.log(`🚀 Server is running on port ${port}`)
+    serve({
+      fetch: app.fetch,
+      port
+    })
+  })
+}
 
 export default app

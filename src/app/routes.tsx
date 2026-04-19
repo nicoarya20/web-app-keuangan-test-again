@@ -21,31 +21,31 @@ export const router = createBrowserRouter([
   },
   {
     path: '/',
-    Component: RootLayout,
+    element: <RequireAuth><RootLayout /></RequireAuth>,
     children: [
       {
         index: true,
-        element: <RequireAuth><Dashboard /></RequireAuth>
+        element: <Dashboard />
       },
       {
         path: 'income',
-        element: <RequireAuth><IncomePage /></RequireAuth>
+        element: <IncomePage />
       },
       {
         path: 'expenses',
-        element: <RequireAuth><ExpensesPage /></RequireAuth>
+        element: <ExpensesPage />
       },
       {
         path: 'wishlist',
-        element: <RequireAuth><WishlistPage /></RequireAuth>
+        element: <WishlistPage />
       },
       {
         path: 'savings',
-        element: <RequireAuth><SavingsPage /></RequireAuth>
+        element: <SavingsPage />
       },
       {
         path: 'wallet',
-        element: <RequireAuth><WalletPage /></RequireAuth>
+        element: <WalletPage />
       },
     ],
   },
