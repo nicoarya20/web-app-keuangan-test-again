@@ -1,14 +1,22 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { signIn } from '../../lib/auth'
+import { signIn, useSession } from '../../lib/auth'
 import { Lock, Mail, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  const { data: session } = useSession()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (session) {
+      navigate('/')
+    }
+  }, [session, navigate])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -18,13 +26,14 @@ export default function LoginPage() {
       const result = await signIn.email({
         email,
         password,
-        callbackURL: '/',
       })
 
       if (result?.error) {
         toast.error(result.error.message || 'Login failed')
       } else {
         toast.success('Login successful!')
+        // After success, the session state will update automatically via useSession hook
+        // but we navigate just in case we are on the /login path
         navigate('/')
       }
     } catch (error) {
@@ -33,6 +42,10 @@ export default function LoginPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  if (session) {
+    return null; // Don't show login form if already logged in
   }
 
   return (
