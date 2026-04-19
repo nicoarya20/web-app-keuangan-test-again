@@ -151,10 +151,18 @@ export interface DashboardStats {
   savingRate: number
 }
 
+export interface DashboardRecentTransaction {
+  type: 'income' | 'expense'
+  id: string
+  category: string
+  amount: number
+  date: string
+}
+
 export interface DashboardData {
   stats: DashboardStats
   expensesByCategory: { category: string; total: number }[]
-  recentTransactions: Record<string, unknown>[]
+  recentTransactions: DashboardRecentTransaction[]
 }
 
 export type CashflowDay = { date: string; income: number; expense: number }
