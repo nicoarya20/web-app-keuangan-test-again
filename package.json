@@ -1,9 +1,10 @@
 {
   "name": "@figma/my-make-file",
   "private": true,
-  "version": "0.0.4",
+  "version": "0.0.5",
   "type": "module",
   "scripts": {
+    "postinstall": "prisma generate --schema=backend/prisma/schema.prisma",
     "dev": "concurrently \"vite\" \"cd backend && tsx watch src/index.ts\"",
     "build": "vite build",
     "backend:dev": "cd backend && tsx watch src/index.ts",
@@ -13,11 +14,14 @@
     "backend:db:migrate": "cd backend && bunx prisma migrate dev"
   },
   "dependencies": {
+    "@better-auth/core": "^1.6.5",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.1",
+    "@hono/node-server": "^1.19.14",
     "@mui/icons-material": "7.3.5",
     "@mui/material": "7.3.5",
     "@popperjs/core": "2.11.8",
+    "@prisma/client": "^6.19.3",
     "@radix-ui/react-accordion": "1.2.3",
     "@radix-ui/react-alert-dialog": "1.1.6",
     "@radix-ui/react-aspect-ratio": "1.1.2",
@@ -52,6 +56,7 @@
     "cmdk": "1.1.1",
     "date-fns": "3.6.0",
     "embla-carousel-react": "8.6.0",
+    "hono": "^4.12.14",
     "input-otp": "1.4.2",
     "lucide-react": "0.487.0",
     "motion": "12.23.24",
@@ -76,6 +81,7 @@
     "@vitejs/plugin-react": "4.7.0",
     "concurrently": "^9.2.1",
     "dotenv": "^17.4.1",
+    "prisma": "^6.19.3",
     "tailwindcss": "4.1.12",
     "vite": "6.3.5"
   },

@@ -10,6 +10,5 @@
     }
   ],
   "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "installCommand": "npm install && cd backend && npm install"
+  "outputDirectory": "dist"
 }
