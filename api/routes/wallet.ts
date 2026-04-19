@@ -87,7 +87,7 @@ router.post('/transactions', async (c) => {
   // Ensure date is a proper DateTime
   const dateValue = date.includes('T') ? new Date(date) : new Date(date + 'T00:00:00.000Z')
 
-  const result = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx: any) => {
     const transaction = await tx.walletTransaction.create({
       data: { walletId, type, amount, note, date: dateValue },
     })
@@ -112,7 +112,7 @@ router.delete('/transactions/:id', async (c) => {
   const tx = await prisma.walletTransaction.findUnique({ where: { id } })
   if (!tx) return c.json({ error: 'Transaction not found' }, 404)
 
-  await prisma.$transaction(async (prismaTx) => {
+  await prisma.$transaction(async (prismaTx: any) => {
     // Revert the balance
     const balanceChange = tx.type === 'TOPUP' ? -tx.amount : tx.amount
     await prismaTx.wallet.update({

@@ -42,7 +42,7 @@ router.get('/summary', async (c) => {
 
   // Compute cumulative growth
   let cumulative = 0
-  const growth = growthData.map((s) => {
+  const growth = growthData.map((s: any) => {
     cumulative += s.amount
     return { date: s.date.toISOString().split('T')[0], total: cumulative }
   })
@@ -51,7 +51,7 @@ router.get('/summary', async (c) => {
     totalSavings: totalSavings._sum.amount ?? 0,
     totalInvestments: totalInvestments._sum.amount ?? 0,
     totalAmount: (totalSavings._sum.amount ?? 0) + (totalInvestments._sum.amount ?? 0),
-    goalBreakdown: goalBreakdown.map((g) => ({
+    goalBreakdown: goalBreakdown.map((g: any) => ({
       goalName: g.goalName,
       total: g._sum.amount ?? 0,
     })),

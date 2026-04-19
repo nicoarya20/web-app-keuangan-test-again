@@ -45,7 +45,7 @@ router.get('/monthly-summary', async (c) => {
   return c.json({
     totalIncome: totalIncome._sum.amount ?? 0,
     recurringIncome: recurringIncome._sum.amount ?? 0,
-    categoryBreakdown: categoryBreakdown.map((c) => ({
+    categoryBreakdown: categoryBreakdown.map((c: any) => ({
       category: c.category,
       total: c._sum.amount ?? 0,
       count: c._count,

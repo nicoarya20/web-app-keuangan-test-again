@@ -25,7 +25,7 @@ router.get('/progress', async (c) => {
   const budgets = await prisma.budget.findMany({ where: { userId: user.id } })
 
   const progress = await Promise.all(
-    budgets.map(async (budget) => {
+    budgets.map(async (budget: any) => {
       const spent = await prisma.expense.aggregate({
         where: {
           userId: user.id,

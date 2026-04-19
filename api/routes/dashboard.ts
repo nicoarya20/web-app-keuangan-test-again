@@ -60,8 +60,8 @@ router.get('/', async (c) => {
     `,
   ])
 
-  const totalIncome = monthlyIncomes.reduce((s, i) => s + i.amount, 0)
-  const totalExpense = monthlyExpenses.reduce((s, e) => s + e.amount, 0)
+  const totalIncome = monthlyIncomes.reduce((s: number, i: any) => s + i.amount, 0)
+  const totalExpense = monthlyExpenses.reduce((s: number, e: any) => s + e.amount, 0)
   const balance = totalIncome - totalExpense
   const savingRate = totalIncome > 0 ? ((balance / totalIncome) * 100).toFixed(1) : '0'
 
@@ -75,7 +75,7 @@ router.get('/', async (c) => {
       activeWallets: totalWalletBalance._count,
       savingRate: Number(savingRate),
     },
-    expensesByCategory: expensesByCategory.map((c) => ({
+    expensesByCategory: expensesByCategory.map((c: any) => ({
       category: c.category,
       total: c._sum.amount ?? 0,
     })),
@@ -108,12 +108,12 @@ router.get('/cashflow', async (c) => {
     const dateStr = day.toISOString().split('T')[0]
 
     const dayIncome = incomes
-      .filter((inc) => inc.date.toISOString().split('T')[0] === dateStr)
-      .reduce((s, inc) => s + inc.amount, 0)
+      .filter((inc: any) => inc.date.toISOString().split('T')[0] === dateStr)
+      .reduce((s: number, inc: any) => s + inc.amount, 0)
 
     const dayExpense = expenses
-      .filter((exp) => exp.date.toISOString().split('T')[0] === dateStr)
-      .reduce((s, exp) => s + exp.amount, 0)
+      .filter((exp: any) => exp.date.toISOString().split('T')[0] === dateStr)
+      .reduce((s: number, exp: any) => s + exp.amount, 0)
 
     days.push({
       date: day.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }),

@@ -46,7 +46,7 @@ router.get('/monthly-summary', async (c) => {
   return c.json({
     totalExpense: totalExpense._sum.amount ?? 0,
     transactionCount: totalExpense._count,
-    categoryBreakdown: categoryBreakdown.map((item) => ({
+    categoryBreakdown: categoryBreakdown.map((item: any) => ({
       category: item.category,
       total: item._sum.amount ?? 0,
       count: item._count,
