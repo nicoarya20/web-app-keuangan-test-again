@@ -13,6 +13,6 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["api/**/*", "backend/**/*", "src/**/*"],
+  "include": ["api/**/*", "backend/**/*", "server/**/*", "src/**/*"],
   "exclude": ["node_modules"]
 }
