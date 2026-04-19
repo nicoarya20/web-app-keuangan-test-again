@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useFinance } from '../context/FinanceContext';
+import { api, DashboardData, CashflowDay } from '../../lib/api';
 import { Card } from '../components/ui/card';
 import {
   TrendingUp,
@@ -9,79 +10,80 @@ import {
   AlertCircle,
   ArrowUpRight,
   ArrowDownRight,
+  Loader2,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend } from 'recharts';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, parseISO } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { PageTransition } from '../components/PageTransition';
 
 export const Dashboard: React.FC = () => {
-  const { incomes, expenses, savings, wallets, categoryBudgets } = useFinance();
+  const { categoryBudgets, userId } = useFinance();
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [cashflow, setCashflow] = useState<CashflowDay[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  // Calculate totals
-  const currentMonth = new Date();
-  const monthStart = startOfMonth(currentMonth);
-  const monthEnd = endOfMonth(currentMonth);
+  useEffect(() => {
+    if (!userId) return;
 
-  const monthlyIncomes = incomes.filter((income) => {
-    const incomeDate = parseISO(income.date);
-    return incomeDate >= monthStart && incomeDate <= monthEnd;
-  });
+    let cancelled = false;
 
-  const monthlyExpenses = expenses.filter((expense) => {
-    const expenseDate = parseISO(expense.date);
-    return expenseDate >= monthStart && expenseDate <= monthEnd;
-  });
+    async function fetchDashboard() {
+      try {
+        setLoading(true);
+        const [dashRes, cashRes] = await Promise.all([
+          api.dashboard.get(),
+          api.dashboard.cashflow(),
+        ]);
 
-  const totalIncome = monthlyIncomes.reduce((sum, income) => sum + income.amount, 0);
-  const totalExpense = monthlyExpenses.reduce((sum, expense) => sum + expense.amount, 0);
-  const totalSavings = savings.reduce((sum, saving) => sum + saving.amount, 0);
-  const totalWalletBalance = wallets.reduce((sum, w) => sum + w.currentBalance, 0);
-  const balance = totalIncome - totalExpense;
-  const savingRate = totalIncome > 0 ? ((balance / totalIncome) * 100).toFixed(1) : '0';
+        if (cancelled) return;
+        setData(dashRes);
+        setCashflow(cashRes);
+      } catch (err) {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'Failed to load dashboard');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
 
-  // Expense by category
-  const expensesByCategory = monthlyExpenses.reduce((acc, expense) => {
-    acc[expense.category] = (acc[expense.category] || 0) + expense.amount;
-    return acc;
-  }, {} as Record<string, number>);
+    fetchDashboard();
+    return () => { cancelled = true; };
+  }, [userId]);
 
-  const pieData = Object.entries(expensesByCategory).map(([name, value]) => ({
-    name,
-    value,
+  if (loading) {
+    return (
+      <div className="h-[80vh] flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="h-[80vh] flex items-center justify-center text-red-500">
+        <AlertCircle className="w-6 h-6 mr-2" />
+        {error || 'Dashboard data not available'}
+      </div>
+    );
+  }
+
+  const { stats, expensesByCategory, recentTransactions } = data;
+
+  const pieData = expensesByCategory.map((c) => ({
+    name: c.category,
+    value: c.total,
   }));
 
   const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444'];
 
-  // Cashflow chart (last 7 days)
-  const last7Days = eachDayOfInterval({
-    start: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000),
-    end: new Date(),
-  });
-
-  const cashflowData = last7Days.map((day) => {
-    const dayIncomes = incomes
-      .filter((income) => isSameDay(parseISO(income.date), day))
-      .reduce((sum, income) => sum + income.amount, 0);
-
-    const dayExpenses = expenses
-      .filter((expense) => isSameDay(parseISO(expense.date), day))
-      .reduce((sum, expense) => sum + expense.amount, 0);
-
-    return {
-      date: format(day, 'MMM dd'),
-      income: dayIncomes,
-      expense: dayExpenses,
-    };
-  });
-
-  // Find highest spending category
-  const highestCategory = Object.entries(expensesByCategory).sort((a, b) => b[1] - a[1])[0];
-
   // Check budget warnings
-  const budgetWarnings = Object.entries(expensesByCategory).filter(([category, amount]) => {
-    const budget = categoryBudgets[category];
-    return budget && amount > budget * 0.8;
+  const budgetWarnings = expensesByCategory.filter((c) => {
+    const budget = categoryBudgets[c.category];
+    return budget && c.total > budget * 0.8;
   });
+
+  const highestCategory = expensesByCategory[0];
 
   return (
     <PageTransition>
@@ -99,9 +101,9 @@ export const Dashboard: React.FC = () => {
               <div>
                 <p className="text-sm text-gray-600">Total Balance</p>
                 <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-                  Rp {totalWalletBalance.toLocaleString('id-ID')}
+                  Rp {stats.totalWalletBalance.toLocaleString('id-ID')}
                 </p>
-                <p className="text-xs text-gray-500 mt-2">{wallets.length} dompet aktif</p>
+                <p className="text-xs text-gray-500 mt-2">{stats.activeWallets} dompet aktif</p>
               </div>
               <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
                 <Wallet className="w-5 h-5 text-indigo-600" />
@@ -114,7 +116,7 @@ export const Dashboard: React.FC = () => {
               <div>
                 <p className="text-sm text-gray-600">Total Income</p>
                 <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-                  Rp {totalIncome.toLocaleString('id-ID')}
+                  Rp {stats.totalIncome.toLocaleString('id-ID')}
                 </p>
                 <div className="flex items-center gap-1 mt-2">
                   <ArrowUpRight className="w-3 h-3 text-green-600" />
@@ -132,7 +134,7 @@ export const Dashboard: React.FC = () => {
               <div>
                 <p className="text-sm text-gray-600">Total Expenses</p>
                 <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-                  Rp {totalExpense.toLocaleString('id-ID')}
+                  Rp {stats.totalExpense.toLocaleString('id-ID')}
                 </p>
                 <div className="flex items-center gap-1 mt-2">
                   <ArrowDownRight className="w-3 h-3 text-red-600" />
@@ -149,7 +151,7 @@ export const Dashboard: React.FC = () => {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-gray-600">Saving Rate</p>
-                <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1">{savingRate}%</p>
+                <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1">{stats.savingRate}%</p>
                 <p className="text-xs text-gray-500 mt-2">Of income</p>
               </div>
               <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
@@ -169,13 +171,13 @@ export const Dashboard: React.FC = () => {
                 <ul className="mt-2 space-y-1 text-sm text-amber-800">
                   {highestCategory && (
                     <li className="break-words">
-                      • Spending tertinggi di kategori <strong>{highestCategory[0]}</strong> (Rp{' '}
-                      {highestCategory[1].toLocaleString('id-ID')})
+                      • Spending tertinggi di kategori <strong>{highestCategory.category}</strong> (Rp{' '}
+                      {highestCategory.total.toLocaleString('id-ID')})
                     </li>
                   )}
-                  {budgetWarnings.map(([category]) => (
-                    <li key={category} className="break-words">
-                      • Budget kategori <strong>{category}</strong> sudah mencapai 80%!
+                  {budgetWarnings.map((c) => (
+                    <li key={c.category} className="break-words">
+                      • Budget kategori <strong>{c.category}</strong> sudah mencapai 80%!
                     </li>
                   ))}
                 </ul>
@@ -219,9 +221,9 @@ export const Dashboard: React.FC = () => {
           {/* Cashflow Chart */}
           <Card className="p-6 bg-white rounded-2xl shadow-sm">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Cashflow (Last 7 Days)</h3>
-            {cashflowData.some((d) => d.income > 0 || d.expense > 0) ? (
+            {cashflow.some((d) => d.income > 0 || d.expense > 0) ? (
               <ResponsiveContainer width="100%" height={280}>
-                <LineChart data={cashflowData}>
+                <LineChart data={cashflow}>
                   <XAxis dataKey="date" stroke="#9ca3af" style={{ fontSize: '12px' }} />
                   <YAxis stroke="#9ca3af" style={{ fontSize: '12px' }} />
                   <Tooltip formatter={(value: number) => `Rp ${value.toLocaleString('id-ID')}`} />
@@ -242,46 +244,43 @@ export const Dashboard: React.FC = () => {
         <Card className="p-6 bg-white rounded-2xl shadow-sm">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Transactions</h3>
           <div className="space-y-3">
-            {[...monthlyIncomes.slice(0, 3), ...monthlyExpenses.slice(0, 3)]
-              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-              .slice(0, 5)
-              .map((transaction) => {
-                const isIncome = 'recurring' in transaction;
-                return (
-                  <div
-                    key={transaction.id}
-                    className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl"
-                  >
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <div
-                        className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                          isIncome ? 'bg-green-50' : 'bg-red-50'
-                        }`}
-                      >
-                        {isIncome ? (
-                          <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
-                        ) : (
-                          <TrendingDown className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" />
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-medium text-gray-900 truncate">{transaction.category}</p>
-                        <p className="text-xs sm:text-sm text-gray-500">
-                          {format(parseISO(transaction.date), 'MMM dd, yyyy')}
-                        </p>
-                      </div>
-                    </div>
-                    <p
-                      className={`font-semibold text-sm sm:text-base ${
-                        isIncome ? 'text-green-600' : 'text-red-600'
-                      } whitespace-nowrap`}
+            {recentTransactions.map((transaction) => {
+              const isIncome = transaction.type === 'income';
+              return (
+                <div
+                  key={transaction.id}
+                  className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl"
+                >
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div
+                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                        isIncome ? 'bg-green-50' : 'bg-red-50'
+                      }`}
                     >
-                      {isIncome ? '+' : '-'}Rp {transaction.amount.toLocaleString('id-ID')}
-                    </p>
+                      {isIncome ? (
+                        <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
+                      ) : (
+                        <TrendingDown className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-gray-900 truncate">{transaction.category}</p>
+                      <p className="text-xs sm:text-sm text-gray-500">
+                        {format(parseISO(transaction.date), 'MMM dd, yyyy')}
+                      </p>
+                    </div>
                   </div>
-                );
-              })}
-            {monthlyIncomes.length === 0 && monthlyExpenses.length === 0 && (
+                  <p
+                    className={`font-semibold text-sm sm:text-base ${
+                      isIncome ? 'text-green-600' : 'text-red-600'
+                    } whitespace-nowrap`}
+                  >
+                    {isIncome ? '+' : '-'}Rp {transaction.amount.toLocaleString('id-ID')}
+                  </p>
+                </div>
+              );
+            })}
+            {recentTransactions.length === 0 && (
               <p className="text-center text-gray-400 py-8">No transactions yet</p>
             )}
           </div>
