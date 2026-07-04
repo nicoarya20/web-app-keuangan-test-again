@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { logger } from 'hono/logger'
-import { handle } from 'hono/vercel'
+import { getRequestListener } from '@hono/node-server'
 
 import { errorHandler } from '../src/server/middleware/errorHandler'
 import authRoutes from '../src/server/routes/auth'
@@ -31,4 +31,4 @@ app.route('/api/budgets', budgetRoutes)
 app.route('/api/dashboard', dashboardRoutes)
 
 export const config = { runtime: 'nodejs' }
-export default handle(app)
+export default getRequestListener(app.fetch)
