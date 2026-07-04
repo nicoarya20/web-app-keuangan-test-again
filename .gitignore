@@ -7,3 +7,6 @@ dist/
 # Planning & discussion docs (local only)
 MIND/
 .DISKUSI/
+
+# Generated API bundle (built by esbuild during Vercel deploy)
+api/index.js
