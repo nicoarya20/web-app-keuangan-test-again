@@ -1,130 +1,177 @@
 import { Hono } from 'hono'
-import { prisma } from '../lib/prisma'
+import { randomUUID } from 'crypto'
+import { db } from '../lib/db'
 import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
-
 router.use('*', authMiddleware)
 
 // ============================================================
 // WALLETS
 // ============================================================
 
-// Get all wallets for a user (with transactions)
 router.get('/', async (c) => {
   const user = c.get('user')
-  const wallets = await prisma.wallet.findMany({
-    where: { userId: user.id },
-    include: {
-      transactions: {
-        orderBy: { date: 'desc' },
-      },
-    },
-  })
-  return c.json(wallets)
+
+  const { rows: wallets } = await db.query(
+    `SELECT * FROM wallets WHERE "userId" = $1 ORDER BY "createdAt" DESC`,
+    [user.id]
+  )
+  if (wallets.length === 0) return c.json([])
+
+  const walletIds = wallets.map((w: any) => w.id)
+  const { rows: txs } = await db.query(
+    `SELECT * FROM wallet_transactions WHERE "walletId" = ANY($1::text[]) ORDER BY date DESC`,
+    [walletIds]
+  )
+
+  const result = wallets.map((w: any) => ({
+    ...w,
+    transactions: txs.filter((t: any) => t.walletId === w.id),
+  }))
+  return c.json(result)
 })
 
-// Get total balance across all wallets
 router.get('/total-balance', async (c) => {
   const user = c.get('user')
-  const result = await prisma.wallet.aggregate({
-    where: { userId: user.id },
-    _sum: { currentBalance: true },
-    _count: true,
-  })
+  const { rows } = await db.query(
+    `SELECT COALESCE(SUM("currentBalance"), 0) AS total, COUNT(*)::int AS count
+     FROM wallets WHERE "userId" = $1`,
+    [user.id]
+  )
   return c.json({
-    totalBalance: result._sum.currentBalance ?? 0,
-    walletCount: result._count,
+    totalBalance: Number(rows[0].total),
+    walletCount: rows[0].count,
   })
 })
 
-// Create wallet
 router.post('/', async (c) => {
   const body = await c.req.json()
   const user = c.get('user')
-  const wallet = await prisma.wallet.create({
-    data: {
-      ...body,
-      userId: user.id,
-      currentBalance: body.initialBalance ?? 0,
-    },
-  })
-  return c.json(wallet, 201)
+  const id = randomUUID()
+  const initialBalance = body.initialBalance ?? 0
+
+  const { rows } = await db.query(
+    `INSERT INTO wallets (id, "userId", name, "walletType", "initialBalance", "currentBalance", "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, $4, $5, $5, NOW(), NOW())
+     RETURNING *`,
+    [id, user.id, body.name, body.walletType, initialBalance]
+  )
+  return c.json(rows[0], 201)
 })
 
-// Update wallet
 router.patch('/:id', async (c) => {
   const body = await c.req.json()
-  const wallet = await prisma.wallet.update({
-    where: { id: c.req.param('id') },
-    data: body,
-  })
-  return c.json(wallet)
+  const { id } = c.req.param()
+
+  const fields: string[] = []
+  const values: unknown[] = []
+  let i = 1
+
+  if (body.name !== undefined) { fields.push(`name = $${i++}`); values.push(body.name) }
+  if (body.walletType !== undefined) { fields.push(`"walletType" = $${i++}`); values.push(body.walletType) }
+  if (body.currentBalance !== undefined) { fields.push(`"currentBalance" = $${i++}`); values.push(body.currentBalance) }
+
+  if (fields.length === 0) return c.json({ error: 'No fields to update' }, 400)
+  fields.push(`"updatedAt" = NOW()`)
+  values.push(id)
+
+  const { rows } = await db.query(
+    `UPDATE wallets SET ${fields.join(', ')} WHERE id = $${i} RETURNING *`,
+    values
+  )
+  if (!rows[0]) return c.json({ error: 'Wallet not found' }, 404)
+  return c.json(rows[0])
 })
 
-// Delete wallet (cascades to transactions)
 router.delete('/:id', async (c) => {
-  await prisma.wallet.delete({ where: { id: c.req.param('id') } })
+  const { id } = c.req.param()
+  const { rowCount } = await db.query(`DELETE FROM wallets WHERE id = $1`, [id])
+  if (!rowCount) return c.json({ error: 'Wallet not found' }, 404)
   return c.json({ success: true })
 })
 
 // ============================================================
-// WALLET TRANSACTIONS
+// WALLET TRANSACTIONS — atomic via BEGIN/FOR UPDATE/COMMIT
 // ============================================================
 
-// Create transaction + update balance atomically
 router.post('/transactions', async (c) => {
   const body = await c.req.json()
   const user = c.get('user')
   const { walletId, type, amount, note, date } = body
-
-  // Verify wallet belongs to user
-  const wallet = await prisma.wallet.findUnique({ where: { id: walletId } })
-  if (!wallet || wallet.userId !== user.id) {
-    return c.json({ error: 'Wallet not found' }, 404)
-  }
-
-  // Ensure date is a proper DateTime
+  const txId = randomUUID()
   const dateValue = date.includes('T') ? new Date(date) : new Date(date + 'T00:00:00.000Z')
 
-  const result = await prisma.$transaction(async (tx: any) => {
-    const transaction = await tx.walletTransaction.create({
-      data: { walletId, type, amount, note, date: dateValue },
-    })
+  const client = await db.connect()
+  try {
+    await client.query('BEGIN')
+
+    // Lock wallet row — cegah race condition
+    const { rows: [wallet] } = await client.query(
+      `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+      [walletId, user.id]
+    )
+    if (!wallet) {
+      await client.query('ROLLBACK')
+      return c.json({ error: 'Wallet not found' }, 404)
+    }
+
+    const { rows: [tx] } = await client.query(
+      `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+       RETURNING *`,
+      [txId, walletId, type, amount, note ?? null, dateValue]
+    )
 
     const balanceChange = type === 'TOPUP' ? amount : -amount
-    const updatedWallet = await tx.wallet.update({
-      where: { id: walletId },
-      data: { currentBalance: { increment: balanceChange } },
-    })
+    const { rows: [updatedWallet] } = await client.query(
+      `UPDATE wallets SET "currentBalance" = "currentBalance" + $1, "updatedAt" = NOW()
+       WHERE id = $2 RETURNING *`,
+      [balanceChange, walletId]
+    )
 
-    return { transaction, wallet: updatedWallet }
-  })
-
-  return c.json(result, 201)
+    await client.query('COMMIT')
+    return c.json({ transaction: tx, wallet: updatedWallet }, 201)
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
 })
 
-// Delete transaction (does NOT revert balance — caller must handle)
 router.delete('/transactions/:id', async (c) => {
   const { id } = c.req.param()
 
-  // Get transaction to know which wallet and type
-  const tx = await prisma.walletTransaction.findUnique({ where: { id } })
-  if (!tx) return c.json({ error: 'Transaction not found' }, 404)
+  const client = await db.connect()
+  try {
+    await client.query('BEGIN')
 
-  await prisma.$transaction(async (prismaTx: any) => {
-    // Revert the balance
+    const { rows: [tx] } = await client.query(
+      `SELECT * FROM wallet_transactions WHERE id = $1 FOR UPDATE`,
+      [id]
+    )
+    if (!tx) {
+      await client.query('ROLLBACK')
+      return c.json({ error: 'Transaction not found' }, 404)
+    }
+
+    // Revert balance
     const balanceChange = tx.type === 'TOPUP' ? -tx.amount : tx.amount
-    await prismaTx.wallet.update({
-      where: { id: tx.walletId },
-      data: { currentBalance: { increment: balanceChange } },
-    })
+    await client.query(
+      `UPDATE wallets SET "currentBalance" = "currentBalance" + $1, "updatedAt" = NOW() WHERE id = $2`,
+      [balanceChange, tx.walletId]
+    )
+    await client.query(`DELETE FROM wallet_transactions WHERE id = $1`, [id])
 
-    // Delete the transaction
-    await prismaTx.walletTransaction.delete({ where: { id } })
-  })
-
-  return c.json({ success: true })
+    await client.query('COMMIT')
+    return c.json({ success: true })
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
 })
 
 export default router

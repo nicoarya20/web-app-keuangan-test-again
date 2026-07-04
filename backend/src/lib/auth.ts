@@ -1,8 +1,5 @@
 import { betterAuth } from 'better-auth'
-import { prismaAdapter } from 'better-auth/adapters/prisma'
-import { prisma } from './prisma'
-
-const isProduction = process.env.NODE_ENV === 'production'
+import { db } from './db'
 
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
@@ -10,24 +7,24 @@ export const auth = betterAuth({
   trustedOrigins: [
     'https://web-app-keuangan-test-again.vercel.app',
     'http://localhost:5173',
-    'http://localhost:3000'
+    'http://localhost:5174',
+    'http://localhost:5175',
+    'http://localhost:3000',
   ],
-  database: prismaAdapter(prisma, {
-    provider: 'postgresql',
-  }),
-  emailAndPassword: {
-    enabled: true,
-  },
+  database: db,  // pg.Pool — same connection pool as app routes, no Prisma binary needed
   session: {
-    expiresIn: 60 * 60 * 24 * 7, // 7 days
-    updateAge: 60 * 60 * 24, // 1 day
+    expiresIn: 60 * 60 * 24 * 7,
+    updateAge: 60 * 60 * 24,
     cookieCache: {
       enabled: true,
-      maxAge: 5 * 60, // 5 minutes
+      maxAge: 5 * 60,
     },
   },
-  user: {
-    additionalFields: {},
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    },
   },
   advanced: {
     cookies: {

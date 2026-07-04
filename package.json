@@ -5,13 +5,13 @@
   "type": "module",
   "scripts": {
     "postinstall": "prisma generate --schema=backend/prisma/schema.prisma",
-    "dev": "concurrently \"vite\" \"cd backend && tsx watch src/index.ts\"",
+    "dev": "concurrently \"vite\" \"tsx watch backend/src/index.ts\"",
     "build": "vite build",
-    "backend:dev": "cd backend && tsx watch src/index.ts",
-    "backend:db:push": "cd backend && bunx prisma db push",
-    "backend:db:generate": "cd backend && bunx prisma generate",
-    "backend:db:studio": "cd backend && bunx prisma studio",
-    "backend:db:migrate": "cd backend && bunx prisma migrate dev"
+    "backend:dev": "tsx watch backend/src/index.ts",
+    "backend:db:push": "bunx prisma db push --schema=backend/prisma/schema.prisma",
+    "backend:db:generate": "bunx prisma generate --schema=backend/prisma/schema.prisma",
+    "backend:db:studio": "bunx prisma studio --schema=backend/prisma/schema.prisma",
+    "backend:db:migrate": "bunx prisma migrate dev --schema=backend/prisma/schema.prisma"
   },
   "dependencies": {
     "@better-auth/core": "^1.6.5",
@@ -57,6 +57,7 @@
     "date-fns": "3.6.0",
     "embla-carousel-react": "8.6.0",
     "hono": "^4.12.14",
+    "pg": "^8.13.3",
     "input-otp": "1.4.2",
     "lucide-react": "0.487.0",
     "motion": "12.23.24",
@@ -82,6 +83,7 @@
     "@vitejs/plugin-react": "4.7.0",
     "concurrently": "^9.2.1",
     "dotenv": "^17.4.1",
+    "@types/pg": "^8.11.11",
     "prisma": "^6.19.3",
     "tailwindcss": "4.1.12",
     "typescript": "^6.0.3",

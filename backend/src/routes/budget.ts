@@ -1,82 +1,78 @@
 import { Hono } from 'hono'
-import { prisma } from '../lib/prisma'
+import { randomUUID } from 'crypto'
+import { db } from '../lib/db'
 import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
-
 router.use('*', authMiddleware)
 
-// Get all budgets for a user
 router.get('/', async (c) => {
   const user = c.get('user')
-  const budgets = await prisma.budget.findMany({
-    where: { userId: user.id },
-  })
-  return c.json(budgets)
+  const { rows } = await db.query(
+    `SELECT * FROM budgets WHERE "userId" = $1`,
+    [user.id]
+  )
+  return c.json(rows)
 })
 
-// Get budget progress (budget vs actual spending this month)
 router.get('/progress', async (c) => {
   const user = c.get('user')
   const now = new Date()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+  const start = new Date(now.getFullYear(), now.getMonth(), 1)
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
 
-  const budgets = await prisma.budget.findMany({ where: { userId: user.id } })
-
-  const progress = await Promise.all(
-    budgets.map(async (budget) => {
-      const spent = await prisma.expense.aggregate({
-        where: {
-          userId: user.id,
-          category: budget.category,
-          date: { gte: startOfMonth, lte: endOfMonth },
-        },
-        _sum: { amount: true },
-      })
-
-      const amount = spent._sum.amount ?? 0
-      const percentage = budget.amount > 0 ? (amount / budget.amount) * 100 : 0
-
-      return {
-        category: budget.category,
-        budget: budget.amount,
-        spent: amount,
-        percentage: Number(percentage.toFixed(1)),
-        remaining: budget.amount - amount,
-        isOverBudget: percentage > 100,
-        isWarning: percentage > 80 && percentage <= 100,
-      }
-    })
+  const { rows: budgets } = await db.query(
+    `SELECT * FROM budgets WHERE "userId" = $1`,
+    [user.id]
   )
+
+  // Satu query untuk semua pengeluaran per kategori bulan ini
+  const { rows: spentRows } = await db.query(
+    `SELECT category, COALESCE(SUM(amount), 0)::int AS spent
+     FROM expenses
+     WHERE "userId" = $1 AND date >= $2 AND date <= $3
+     GROUP BY category`,
+    [user.id, start, end]
+  )
+  const spentMap = new Map(spentRows.map((r: any) => [r.category, r.spent]))
+
+  const progress = budgets.map((budget: any) => {
+    const spent = Number(spentMap.get(budget.category) ?? 0)
+    const percentage = budget.amount > 0 ? (spent / budget.amount) * 100 : 0
+    return {
+      category: budget.category,
+      budget: budget.amount,
+      spent,
+      percentage: Number(percentage.toFixed(1)),
+      remaining: budget.amount - spent,
+      isOverBudget: percentage > 100,
+      isWarning: percentage > 80 && percentage <= 100,
+    }
+  })
 
   return c.json(progress)
 })
 
-// Create or update budget (upsert by userId + category)
+// Upsert: insert atau update kalau (userId, category) sudah ada
 router.post('/', async (c) => {
   const body = await c.req.json()
   const user = c.get('user')
-  const budget = await prisma.budget.upsert({
-    where: {
-      userId_category: {
-        userId: user.id,
-        category: body.category,
-      },
-    },
-    update: { amount: body.amount },
-    create: {
-      userId: user.id,
-      category: body.category,
-      amount: body.amount,
-    },
-  })
-  return c.json(budget)
+
+  const { rows } = await db.query(
+    `INSERT INTO budgets (id, "userId", category, amount, "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, $4, NOW(), NOW())
+     ON CONFLICT ("userId", category)
+     DO UPDATE SET amount = EXCLUDED.amount, "updatedAt" = NOW()
+     RETURNING *`,
+    [randomUUID(), user.id, body.category, body.amount]
+  )
+  return c.json(rows[0])
 })
 
-// Delete budget
 router.delete('/:id', async (c) => {
-  await prisma.budget.delete({ where: { id: c.req.param('id') } })
+  const { id } = c.req.param()
+  const { rowCount } = await db.query(`DELETE FROM budgets WHERE id = $1`, [id])
+  if (!rowCount) return c.json({ error: 'Record not found' }, 404)
   return c.json({ success: true })
 })
 

@@ -3,3 +3,7 @@ dist/
 .DS_Store
 *.env
 *.local
+
+# Planning & discussion docs (local only)
+MIND/
+.DISKUSI/

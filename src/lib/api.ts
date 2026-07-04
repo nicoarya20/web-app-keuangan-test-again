@@ -1,4 +1,6 @@
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://web-app-keuangan-test-again.vercel.app/api' : 'http://localhost:3000/api')
+// Di dev: pakai relative path /api → Vite proxy ke backend (tidak ada CORS)
+// Di prod: Vercel same-origin, /api juga cukup
+const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://web-app-keuangan-test-again.vercel.app/api' : '/api')
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

@@ -1,5 +1,4 @@
 import { Hono } from 'hono'
-import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { handle } from 'hono/vercel'
 
@@ -16,40 +15,11 @@ import dashboardRoutes from '../src/server/routes/dashboard'
 
 const app = new Hono()
 
-// ============================================================
-// GLOBAL MIDDLEWARE
-// ============================================================
 app.use('*', logger())
-
-// Build allowed origins from environment variables
-const allowedOrigins = [
-  'http://localhost:5173',
-  'http://localhost:3000',
-  'https://web-app-keuangan-test-again.vercel.app',
-  ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
-  ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
-].filter((origin, index, self) => self.indexOf(origin) === index) // deduplicate
-
-app.use('/*', cors({
-  origin: allowedOrigins,
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-  credentials: true,
-  exposeHeaders: ['Set-Cookie'],
-}))
 app.use('*', errorHandler)
 
-// ============================================================
-// HEALTH CHECK
-// ============================================================
-app.get('/', (c) => c.json({
-  message: '🚀 Backend Web-App Keuangan (Vercel-Monolith-v3)',
-  version: '1.0.5',
-}))
+app.get('/', (c) => c.json({ message: '🚀 Backend Web-App Keuangan', version: '2.0.0' }))
 
-// ============================================================
-// ROUTES
-// ============================================================
 app.route('/api/auth', authRoutes)
 app.route('/api/users', userRoutes)
 app.route('/api/incomes', incomeRoutes)
@@ -60,9 +30,12 @@ app.route('/api/wishlists', wishlistRoutes)
 app.route('/api/budgets', budgetRoutes)
 app.route('/api/dashboard', dashboardRoutes)
 
-// Vercel Export
-export const config = {
-  runtime: 'nodejs'
-}
+// Vercel Node.js Serverless — export setiap HTTP method secara eksplisit
+export const config = { runtime: 'nodejs' }
 
-export default handle(app)
+const handler = handle(app)
+export const GET = handler
+export const POST = handler
+export const PUT = handler
+export const PATCH = handler
+export const DELETE = handler

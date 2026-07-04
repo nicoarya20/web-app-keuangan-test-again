@@ -19,4 +19,11 @@ export default defineConfig({
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
+
+  server: {
+    proxy: {
+      // Di dev, proxy /api/* ke backend Hono (port 3000) — tidak perlu CORS
+      '/api': 'http://localhost:3000',
+    },
+  },
 })

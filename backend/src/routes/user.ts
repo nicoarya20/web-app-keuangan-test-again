@@ -1,46 +1,67 @@
 import { Hono } from 'hono'
-import { prisma } from '../lib/prisma'
+import { randomUUID } from 'crypto'
+import { db } from '../lib/db'
 
 const router = new Hono()
 
-// Create user
+// Daftarkan /email/:email SEBELUM /:id agar tidak tertimpa param wildcard
+router.get('/email/:email', async (c) => {
+  const { rows } = await db.query(
+    `SELECT id, email, name FROM users WHERE email = $1`,
+    [c.req.param('email')]
+  )
+  if (!rows[0]) return c.json({ error: 'User not found' }, 404)
+  return c.json(rows[0])
+})
+
+router.get('/:id', async (c) => {
+  const { rows } = await db.query(
+    `SELECT id, email, name FROM users WHERE id = $1`,
+    [c.req.param('id')]
+  )
+  if (!rows[0]) return c.json({ error: 'User not found' }, 404)
+  return c.json(rows[0])
+})
+
 router.post('/', async (c) => {
   const body = await c.req.json()
-  const user = await prisma.user.create({ data: body })
-  return c.json(user, 201)
+  const id = randomUUID()
+  const { rows } = await db.query(
+    `INSERT INTO users (id, email, name, "emailVerified", "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, false, NOW(), NOW())
+     RETURNING id, email, name`,
+    [id, body.email, body.name ?? null]
+  )
+  return c.json(rows[0], 201)
 })
 
-// Get user by ID
-router.get('/:id', async (c) => {
-  const user = await prisma.user.findUnique({
-    where: { id: c.req.param('id') },
-  })
-  if (!user) return c.json({ error: 'User not found' }, 404)
-  return c.json(user)
-})
-
-// Get user by email
-router.get('/email/:email', async (c) => {
-  const user = await prisma.user.findUnique({
-    where: { email: c.req.param('email') },
-  })
-  if (!user) return c.json({ error: 'User not found' }, 404)
-  return c.json(user)
-})
-
-// Update user
 router.patch('/:id', async (c) => {
   const body = await c.req.json()
-  const user = await prisma.user.update({
-    where: { id: c.req.param('id') },
-    data: body,
-  })
-  return c.json(user)
+  const { id } = c.req.param()
+
+  const fields: string[] = []
+  const values: unknown[] = []
+  let i = 1
+
+  if (body.name !== undefined) { fields.push(`name = $${i++}`); values.push(body.name) }
+  if (body.email !== undefined) { fields.push(`email = $${i++}`); values.push(body.email) }
+
+  if (fields.length === 0) return c.json({ error: 'No fields to update' }, 400)
+  fields.push(`"updatedAt" = NOW()`)
+  values.push(id)
+
+  const { rows } = await db.query(
+    `UPDATE users SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, email, name`,
+    values
+  )
+  if (!rows[0]) return c.json({ error: 'User not found' }, 404)
+  return c.json(rows[0])
 })
 
-// Delete user
 router.delete('/:id', async (c) => {
-  await prisma.user.delete({ where: { id: c.req.param('id') } })
+  const { id } = c.req.param()
+  const { rowCount } = await db.query(`DELETE FROM users WHERE id = $1`, [id])
+  if (!rowCount) return c.json({ error: 'User not found' }, 404)
   return c.json({ success: true })
 })
 

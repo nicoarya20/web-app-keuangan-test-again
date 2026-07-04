@@ -1,16 +1,14 @@
 import { createAuthClient } from 'better-auth/react'
 
-const isProduction = import.meta.env.PROD
-
-// Better Auth baseURL (without /api suffix, as Better Auth adds /api/auth/*)
+// Di dev: pakai window.location.origin supaya request lewat Vite proxy → backend
+// Di prod: pakai Vercel URL (same-origin, tidak perlu CORS)
 const getAuthBaseURL = () => {
   if (import.meta.env.VITE_API_URL) {
-    // Remove /api suffix if present
     return import.meta.env.VITE_API_URL.replace(/\/api$/, '')
   }
-  return isProduction
+  return import.meta.env.PROD
     ? 'https://web-app-keuangan-test-again.vercel.app'
-    : 'http://localhost:3000'
+    : window.location.origin
 }
 
 export const authClient = createAuthClient({

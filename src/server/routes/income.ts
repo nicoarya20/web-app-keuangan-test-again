@@ -1,99 +1,98 @@
 import { Hono } from 'hono'
-import { prisma } from '../lib/prisma'
+import { randomUUID } from 'crypto'
+import { db } from '../lib/db'
 import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
-
-// All routes require authentication
 router.use('*', authMiddleware)
 
-// Get all incomes for authenticated user
 router.get('/', async (c) => {
   const user = c.get('user')
-  const incomes = await prisma.income.findMany({
-    where: { userId: user.id },
-    orderBy: { date: 'desc' },
-  })
-  return c.json(incomes)
+  const { rows } = await db.query(
+    `SELECT * FROM incomes WHERE "userId" = $1 ORDER BY date DESC`,
+    [user.id]
+  )
+  return c.json(rows)
 })
 
-// Get monthly summary for authenticated user
 router.get('/monthly-summary', async (c) => {
   const user = c.get('user')
   const now = new Date()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+  const start = new Date(now.getFullYear(), now.getMonth(), 1)
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
 
-  const [totalIncome, recurringIncome, categoryBreakdown] = await Promise.all([
-    prisma.income.aggregate({
-      where: { userId: user.id, date: { gte: startOfMonth, lte: endOfMonth } },
-      _sum: { amount: true },
-    }),
-    prisma.income.aggregate({
-      where: { userId: user.id, recurring: true, date: { gte: startOfMonth, lte: endOfMonth } },
-      _sum: { amount: true },
-    }),
-    prisma.income.groupBy({
-      by: ['category'],
-      where: { userId: user.id, date: { gte: startOfMonth, lte: endOfMonth } },
-      _sum: { amount: true },
-      _count: true,
-      orderBy: { _sum: { amount: 'desc' } },
-    }),
+  const [totalRes, recurringRes, categoryRes] = await Promise.all([
+    db.query(
+      `SELECT COALESCE(SUM(amount), 0) AS total FROM incomes WHERE "userId" = $1 AND date >= $2 AND date <= $3`,
+      [user.id, start, end]
+    ),
+    db.query(
+      `SELECT COALESCE(SUM(amount), 0) AS total FROM incomes WHERE "userId" = $1 AND recurring = true AND date >= $2 AND date <= $3`,
+      [user.id, start, end]
+    ),
+    db.query(
+      `SELECT category, SUM(amount)::int AS total, COUNT(*)::int AS count
+       FROM incomes WHERE "userId" = $1 AND date >= $2 AND date <= $3
+       GROUP BY category ORDER BY total DESC`,
+      [user.id, start, end]
+    ),
   ])
 
   return c.json({
-    totalIncome: totalIncome._sum.amount ?? 0,
-    recurringIncome: recurringIncome._sum.amount ?? 0,
-    categoryBreakdown: categoryBreakdown.map((c: any) => ({
-      category: c.category,
-      total: c._sum.amount ?? 0,
-      count: c._count,
-    })),
+    totalIncome: Number(totalRes.rows[0].total),
+    recurringIncome: Number(recurringRes.rows[0].total),
+    categoryBreakdown: categoryRes.rows,
   })
 })
 
-// Create income
 router.post('/', async (c) => {
   const body = await c.req.json()
   const user = c.get('user')
-  
-  // Ensure date is a proper DateTime
-  const dateValue = body.date.includes('T') ? new Date(body.date) : new Date(body.date + 'T00:00:00.000Z')
-  
-  const income = await prisma.income.create({
-    data: {
-      userId: user.id,
-      amount: body.amount,
-      category: body.category,
-      date: dateValue,
-      recurring: body.recurring ?? false,
-      note: body.note,
-    },
-  })
-  return c.json(income, 201)
+  const id = randomUUID()
+  const date = body.date.includes('T') ? new Date(body.date) : new Date(body.date + 'T00:00:00.000Z')
+
+  const { rows } = await db.query(
+    `INSERT INTO incomes (id, "userId", amount, category, date, recurring, note, "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+     RETURNING *`,
+    [id, user.id, body.amount, body.category, date, body.recurring ?? false, body.note ?? null]
+  )
+  return c.json(rows[0], 201)
 })
 
-// Update income
 router.patch('/:id', async (c) => {
   const body = await c.req.json()
-  
-  // Ensure date is a proper DateTime if provided
-  const data: Record<string, unknown> = { ...body }
-  if (body.date) {
-    data.date = body.date.includes('T') ? new Date(body.date) : new Date(body.date + 'T00:00:00.000Z')
+  const { id } = c.req.param()
+
+  const fields: string[] = []
+  const values: unknown[] = []
+  let i = 1
+
+  if (body.amount !== undefined) { fields.push(`amount = $${i++}`); values.push(body.amount) }
+  if (body.category !== undefined) { fields.push(`category = $${i++}`); values.push(body.category) }
+  if (body.date !== undefined) {
+    const d = body.date.includes('T') ? new Date(body.date) : new Date(body.date + 'T00:00:00.000Z')
+    fields.push(`date = $${i++}`); values.push(d)
   }
-  
-  const income = await prisma.income.update({
-    where: { id: c.req.param('id') },
-    data,
-  })
-  return c.json(income)
+  if (body.recurring !== undefined) { fields.push(`recurring = $${i++}`); values.push(body.recurring) }
+  if (body.note !== undefined) { fields.push(`note = $${i++}`); values.push(body.note) }
+
+  if (fields.length === 0) return c.json({ error: 'No fields to update' }, 400)
+  fields.push(`"updatedAt" = NOW()`)
+  values.push(id)
+
+  const { rows } = await db.query(
+    `UPDATE incomes SET ${fields.join(', ')} WHERE id = $${i} RETURNING *`,
+    values
+  )
+  if (!rows[0]) return c.json({ error: 'Record not found' }, 404)
+  return c.json(rows[0])
 })
 
-// Delete income
 router.delete('/:id', async (c) => {
-  await prisma.income.delete({ where: { id: c.req.param('id') } })
+  const { id } = c.req.param()
+  const { rowCount } = await db.query(`DELETE FROM incomes WHERE id = $1`, [id])
+  if (!rowCount) return c.json({ error: 'Record not found' }, 404)
   return c.json({ success: true })
 })
 

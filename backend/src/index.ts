@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
@@ -23,10 +24,12 @@ app.use('*', logger())
 // Build allowed origins from environment variables
 const allowedOrigins = [
   'http://localhost:5173',
+  'http://localhost:5174',
+  'http://localhost:5175',
   'http://localhost:3000',
   ...(process.env.FRONTEND_URL ? [process.env.FRONTEND_URL] : []),
   ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL] : []),
-].filter((origin, index, self) => self.indexOf(origin) === index) // deduplicate
+].filter((origin, index, self) => self.indexOf(origin) === index)
 
 app.use('/*', cors({
   origin: allowedOrigins,

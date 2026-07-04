@@ -7,17 +7,12 @@ import { WishlistPage } from './pages/WishlistPage';
 import { SavingsPage } from './pages/SavingsPage';
 import { WalletPage } from './pages/WalletPage';
 import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
 import { RequireAuth } from './components/RequireAuth';
 
 export const router = createBrowserRouter([
   {
     path: '/login',
     Component: LoginPage,
-  },
-  {
-    path: '/register',
-    Component: RegisterPage,
   },
   {
     path: '/',
