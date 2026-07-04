@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
+import { Navigate } from 'react-router';
 import { useSession } from '../../lib/auth';
-import LoginPage from '../pages/LoginPage';
 
 interface RequireAuthProps {
   children: ReactNode;
@@ -18,7 +18,7 @@ export function RequireAuth({ children }: RequireAuthProps) {
   }
 
   if (!session) {
-    return <LoginPage />;
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;
