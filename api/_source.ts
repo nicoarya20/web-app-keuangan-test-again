@@ -30,12 +30,5 @@ app.route('/api/wishlists', wishlistRoutes)
 app.route('/api/budgets', budgetRoutes)
 app.route('/api/dashboard', dashboardRoutes)
 
-// Vercel Node.js Serverless — export setiap HTTP method secara eksplisit
 export const config = { runtime: 'nodejs' }
-
-const handler = handle(app)
-export const GET = handler
-export const POST = handler
-export const PUT = handler
-export const PATCH = handler
-export const DELETE = handler
+export default handle(app)
