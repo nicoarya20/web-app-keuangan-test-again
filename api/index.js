@@ -53672,8 +53672,20 @@ var optionalAuthMiddleware = createMiddleware2(async (c, next) => {
 
 // src/server/routes/auth.ts
 var router2 = new Hono2();
-router2.on(["POST", "GET"], "/*", (c) => {
-  return auth.handler(c.req.raw);
+router2.on(["POST", "GET"], "/*", async (c) => {
+  const path2 = c.req.path;
+  console.log("[auth] handling:", c.req.method, path2);
+  const deadline = new Promise(
+    (_, reject) => setTimeout(() => reject(new Error(`auth handler timed out after 8s: ${path2}`)), 8e3)
+  );
+  try {
+    const res = await Promise.race([auth.handler(c.req.raw), deadline]);
+    console.log("[auth] done:", c.req.method, path2, res.status);
+    return res;
+  } catch (err) {
+    console.error("[auth] error:", err.message);
+    return c.json({ error: err.message }, 500);
+  }
 });
 router2.get("/me", authMiddleware, async (c) => {
   const user = c.get("user");

@@ -12,8 +12,20 @@ const router = new Hono()
 // POST /api/auth/sign-out — Logout
 // GET  /api/auth/get-session — Get current session
 
-router.on(['POST', 'GET'], '/*', (c) => {
-  return auth.handler(c.req.raw)
+router.on(['POST', 'GET'], '/*', async (c) => {
+  const path = c.req.path
+  console.log('[auth] handling:', c.req.method, path)
+  const deadline = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`auth handler timed out after 8s: ${path}`)), 8000)
+  )
+  try {
+    const res = await Promise.race([auth.handler(c.req.raw), deadline])
+    console.log('[auth] done:', c.req.method, path, res.status)
+    return res
+  } catch (err: any) {
+    console.error('[auth] error:', err.message)
+    return c.json({ error: err.message }, 500)
+  }
 })
 
 // ============================================================
