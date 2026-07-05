@@ -15,9 +15,11 @@ import {
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { format, parseISO } from 'date-fns';
 import { PageTransition } from '../components/PageTransition';
+import { useT } from '../context/LanguageContext';
 
 export const Dashboard: React.FC = () => {
   const { categoryBudgets, userId } = useFinance();
+  const t = useT();
   const [data, setData] = useState<DashboardData | null>(null);
   const [cashflow, setCashflow] = useState<CashflowDay[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,7 +46,7 @@ export const Dashboard: React.FC = () => {
         setCashflow(cashRes);
       } catch (err) {
         if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Failed to load dashboard');
+        setError(err instanceof Error ? err.message : t.dashboard.dataNotAvailable);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -66,7 +68,7 @@ export const Dashboard: React.FC = () => {
     return (
       <div className="h-[80vh] flex items-center justify-center text-red-500">
         <AlertCircle className="w-6 h-6 mr-2" />
-        {error || 'Dashboard data not available'}
+        {error || t.dashboard.dataNotAvailable}
       </div>
     );
   }
@@ -80,7 +82,6 @@ export const Dashboard: React.FC = () => {
 
   const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#ef4444'];
 
-  // Check budget warnings
   const budgetWarnings = expensesByCategory.filter((c) => {
     const budget = categoryBudgets[c.category];
     return budget && c.total > budget * 0.8;
@@ -93,8 +94,8 @@ export const Dashboard: React.FC = () => {
       <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 mt-1">Welcome back! Here's your financial overview.</p>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">{t.dashboard.title}</h1>
+          <p className="text-gray-500 mt-1">{t.dashboard.subtitle}</p>
         </div>
 
         {/* Stats Cards */}
@@ -102,11 +103,13 @@ export const Dashboard: React.FC = () => {
           <Card className="p-5 bg-white rounded-2xl shadow-sm">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total Balance</p>
+                <p className="text-sm text-gray-600">{t.dashboard.totalBalance}</p>
                 <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
                   Rp {stats.totalWalletBalance.toLocaleString('id-ID')}
                 </p>
-                <p className="text-xs text-gray-500 mt-2">{stats.activeWallets} dompet aktif</p>
+                <p className="text-xs text-gray-500 mt-2">
+                  {t.dashboard.activeWallets(stats.activeWallets)}
+                </p>
               </div>
               <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
                 <Wallet className="w-5 h-5 text-indigo-600" />
@@ -117,7 +120,7 @@ export const Dashboard: React.FC = () => {
           <Card className="p-5 bg-white rounded-2xl shadow-sm">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total Income</p>
+                <p className="text-sm text-gray-600">{t.dashboard.totalIncome}</p>
                 <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
                   Rp {stats.totalIncome.toLocaleString('id-ID')}
                 </p>
@@ -135,7 +138,7 @@ export const Dashboard: React.FC = () => {
           <Card className="p-5 bg-white rounded-2xl shadow-sm">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-gray-600">Total Expenses</p>
+                <p className="text-sm text-gray-600">{t.dashboard.totalExpenses}</p>
                 <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
                   Rp {stats.totalExpense.toLocaleString('id-ID')}
                 </p>
@@ -153,9 +156,9 @@ export const Dashboard: React.FC = () => {
           <Card className="p-5 bg-white rounded-2xl shadow-sm">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm text-gray-600">Saving Rate</p>
+                <p className="text-sm text-gray-600">{t.dashboard.savingRate}</p>
                 <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1">{stats.savingRate}%</p>
-                <p className="text-xs text-gray-500 mt-2">Of income</p>
+                <p className="text-xs text-gray-500 mt-2">{t.dashboard.ofIncome}</p>
               </div>
               <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
                 <PiggyBank className="w-5 h-5 text-purple-600" />
@@ -170,17 +173,19 @@ export const Dashboard: React.FC = () => {
             <div className="flex items-start gap-3">
               <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
               <div className="min-w-0 flex-1">
-                <h3 className="font-semibold text-amber-900">Quick Insights</h3>
+                <h3 className="font-semibold text-amber-900">{t.dashboard.quickInsights}</h3>
                 <ul className="mt-2 space-y-1 text-sm text-amber-800">
                   {highestCategory && (
                     <li className="break-words">
-                      • Spending tertinggi di kategori <strong>{highestCategory.category}</strong> (Rp{' '}
-                      {highestCategory.total.toLocaleString('id-ID')})
+                      • {t.dashboard.highestSpending(
+                        highestCategory.category,
+                        highestCategory.total.toLocaleString('id-ID')
+                      )}
                     </li>
                   )}
                   {budgetWarnings.map((c) => (
                     <li key={c.category} className="break-words">
-                      • Budget kategori <strong>{c.category}</strong> sudah mencapai 80%!
+                      • {t.dashboard.budgetWarning(c.category)}
                     </li>
                   ))}
                 </ul>
@@ -193,7 +198,7 @@ export const Dashboard: React.FC = () => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Expense by Category */}
           <Card className="p-6 bg-white rounded-2xl shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Expenses by Category</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{t.dashboard.expensesByCategory}</h3>
             {pieData.length > 0 ? (
               <ResponsiveContainer width="100%" height={280}>
                 <PieChart>
@@ -216,14 +221,14 @@ export const Dashboard: React.FC = () => {
               </ResponsiveContainer>
             ) : (
               <div className="h-64 flex items-center justify-center text-gray-400">
-                No expense data yet
+                {t.dashboard.noExpenseData}
               </div>
             )}
           </Card>
 
           {/* Cashflow Chart */}
           <Card className="p-6 bg-white rounded-2xl shadow-sm">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Cashflow (Last 7 Days)</h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">{t.dashboard.cashflow}</h3>
             {cashflow.some((d) => d.income > 0 || d.expense > 0) ? (
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={cashflow}>
@@ -237,7 +242,7 @@ export const Dashboard: React.FC = () => {
               </ResponsiveContainer>
             ) : (
               <div className="h-64 flex items-center justify-center text-gray-400">
-                No transaction data yet
+                {t.dashboard.noTransactionData}
               </div>
             )}
           </Card>
@@ -245,7 +250,7 @@ export const Dashboard: React.FC = () => {
 
         {/* Recent Transactions */}
         <Card className="p-6 bg-white rounded-2xl shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Transactions</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">{t.dashboard.recentTransactions}</h3>
           <div className="space-y-3">
             {recentTransactions.map((transaction) => {
               const isIncome = transaction.type === 'income';
@@ -284,7 +289,7 @@ export const Dashboard: React.FC = () => {
               );
             })}
             {recentTransactions.length === 0 && (
-              <p className="text-center text-gray-400 py-8">No transactions yet</p>
+              <p className="text-center text-gray-400 py-8">{t.dashboard.noTransactions}</p>
             )}
           </div>
         </Card>

@@ -1,6 +1,7 @@
 import { RouterProvider } from 'react-router';
 import { router } from './routes.tsx';
 import { FinanceProvider } from './context/FinanceContext';
+import { LanguageProvider } from './context/LanguageContext';
 import { useSession } from '../lib/auth';
 import { Toaster } from './components/ui/sonner';
 
@@ -16,9 +17,11 @@ export default function App() {
   }
 
   return (
-    <FinanceProvider session={session}>
-      <RouterProvider router={router} />
-      <Toaster position="top-right" />
-    </FinanceProvider>
+    <LanguageProvider>
+      <FinanceProvider session={session}>
+        <RouterProvider router={router} />
+        <Toaster position="top-right" />
+      </FinanceProvider>
+    </LanguageProvider>
   );
 }

@@ -10,9 +10,11 @@ import { Plus, PiggyBank, TrendingUp, Trash2 } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { useT } from '../context/LanguageContext';
 
 export const SavingsPage: React.FC = () => {
   const { savings, addSaving, deleteSaving } = useFinance();
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState({
     amount: '',
@@ -23,14 +25,14 @@ export const SavingsPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      toast.error('Please enter a valid amount');
+      toast.error(t.savings.toast.invalidAmount);
       return;
     }
 
     if (!formData.goalName) {
-      toast.error('Please enter a goal name');
+      toast.error(t.savings.toast.noGoalName);
       return;
     }
 
@@ -48,25 +50,24 @@ export const SavingsPage: React.FC = () => {
       type: 'saving',
     });
     setIsOpen(false);
-    toast.success('Saving added successfully!');
+    toast.success(t.savings.toast.added);
   };
 
   const handleDelete = (id: string) => {
     deleteSaving(id);
-    toast.success('Saving deleted');
+    toast.success(t.savings.toast.deleted);
   };
 
   const totalSavings = savings
     .filter((s) => s.type === 'saving')
     .reduce((sum, saving) => sum + saving.amount, 0);
-  
+
   const totalInvestments = savings
     .filter((s) => s.type === 'investment')
     .reduce((sum, saving) => sum + saving.amount, 0);
 
   const totalAmount = totalSavings + totalInvestments;
 
-  // Growth chart data
   const sortedSavings = [...savings].sort(
     (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
   );
@@ -74,40 +75,39 @@ export const SavingsPage: React.FC = () => {
   let cumulativeAmount = 0;
   const growthData = sortedSavings.map((saving) => {
     cumulativeAmount += saving.amount;
-    return {
-      date: format(parseISO(saving.date), 'MMM dd'),
-      total: cumulativeAmount,
-    };
+    return { date: format(parseISO(saving.date), 'MMM dd'), total: cumulativeAmount };
   });
 
-  // Goals breakdown
   const goalBreakdown = savings.reduce((acc, saving) => {
     acc[saving.goalName] = (acc[saving.goalName] || 0) + saving.amount;
     return acc;
   }, {} as Record<string, number>);
+
+  const getSavingTypeLabel = (type: string) =>
+    type === 'saving' ? t.savings.typeSaving : t.savings.typeInvestment;
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Savings & Investment</h1>
-          <p className="text-gray-500 mt-1">Track your wealth growth</p>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">{t.savings.title}</h1>
+          <p className="text-gray-500 mt-1">{t.savings.subtitle}</p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button className="bg-purple-600 hover:bg-purple-700 rounded-xl">
               <Plus className="w-4 h-4 mr-2" />
-              Add Saving
+              {t.savings.addSaving}
             </Button>
           </DialogTrigger>
           <DialogContent className="rounded-2xl">
             <DialogHeader>
-              <DialogTitle>Add Saving/Investment</DialogTitle>
+              <DialogTitle>{t.savings.addSavingInvestment}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label htmlFor="amount">Amount (Rp)</Label>
+                <Label htmlFor="amount">{t.savings.amount}</Label>
                 <Input
                   id="amount"
                   type="number"
@@ -120,10 +120,10 @@ export const SavingsPage: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="goalName">Goal Name</Label>
+                <Label htmlFor="goalName">{t.savings.goalName}</Label>
                 <Input
                   id="goalName"
-                  placeholder="Emergency Fund, Retirement, etc."
+                  placeholder={t.savings.goalNamePlaceholder}
                   value={formData.goalName}
                   onChange={(e) => setFormData({ ...formData, goalName: e.target.value })}
                   className="rounded-xl"
@@ -132,7 +132,7 @@ export const SavingsPage: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="type">Type</Label>
+                <Label htmlFor="type">{t.savings.type}</Label>
                 <Select
                   value={formData.type}
                   onValueChange={(value: 'saving' | 'investment') =>
@@ -143,14 +143,14 @@ export const SavingsPage: React.FC = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="saving">Saving</SelectItem>
-                    <SelectItem value="investment">Investment</SelectItem>
+                    <SelectItem value="saving">{t.savings.typeSaving}</SelectItem>
+                    <SelectItem value="investment">{t.savings.typeInvestment}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
-                <Label htmlFor="date">Date</Label>
+                <Label htmlFor="date">{t.savings.date}</Label>
                 <Input
                   id="date"
                   type="date"
@@ -162,7 +162,7 @@ export const SavingsPage: React.FC = () => {
               </div>
 
               <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 rounded-xl">
-                Add Saving
+                {t.savings.addSaving}
               </Button>
             </form>
           </DialogContent>
@@ -174,11 +174,11 @@ export const SavingsPage: React.FC = () => {
         <Card className="p-5 bg-white rounded-2xl shadow-sm">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Amount</p>
+              <p className="text-sm text-gray-600">{t.savings.totalAmount}</p>
               <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
                 Rp {totalAmount.toLocaleString('id-ID')}
               </p>
-              <p className="text-xs text-gray-500 mt-2">All savings & investments</p>
+              <p className="text-xs text-gray-500 mt-2">{t.savings.allSavingsSubtitle}</p>
             </div>
             <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
               <PiggyBank className="w-5 h-5 text-purple-600" />
@@ -189,11 +189,11 @@ export const SavingsPage: React.FC = () => {
         <Card className="p-5 bg-white rounded-2xl shadow-sm">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-gray-600">Savings</p>
+              <p className="text-sm text-gray-600">{t.savings.savings}</p>
               <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
                 Rp {totalSavings.toLocaleString('id-ID')}
               </p>
-              <p className="text-xs text-gray-500 mt-2">Safe deposits</p>
+              <p className="text-xs text-gray-500 mt-2">{t.savings.safeDeposits}</p>
             </div>
             <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
               <PiggyBank className="w-5 h-5 text-green-600" />
@@ -204,11 +204,11 @@ export const SavingsPage: React.FC = () => {
         <Card className="p-5 bg-white rounded-2xl shadow-sm">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-gray-600">Investments</p>
+              <p className="text-sm text-gray-600">{t.savings.investments}</p>
               <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
                 Rp {totalInvestments.toLocaleString('id-ID')}
               </p>
-              <p className="text-xs text-gray-500 mt-2">Growth assets</p>
+              <p className="text-xs text-gray-500 mt-2">{t.savings.growthAssets}</p>
             </div>
             <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
               <TrendingUp className="w-5 h-5 text-indigo-600" />
@@ -219,7 +219,7 @@ export const SavingsPage: React.FC = () => {
 
       {/* Growth Chart */}
       <Card className="p-6 bg-white rounded-2xl shadow-sm">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Growth Visualization</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">{t.savings.growthVisualization}</h3>
         {growthData.length > 0 ? (
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={growthData}>
@@ -231,7 +231,7 @@ export const SavingsPage: React.FC = () => {
           </ResponsiveContainer>
         ) : (
           <div className="h-64 flex items-center justify-center text-gray-400">
-            No savings data yet
+            {t.savings.noSavingsData}
           </div>
         )}
       </Card>
@@ -239,7 +239,7 @@ export const SavingsPage: React.FC = () => {
       {/* Goals Breakdown */}
       {Object.keys(goalBreakdown).length > 0 && (
         <Card className="p-6 bg-white rounded-2xl shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Goals Breakdown</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">{t.savings.goalsBreakdown}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
             {Object.entries(goalBreakdown).map(([goal, amount]) => (
               <div key={goal} className="p-3 sm:p-4 bg-purple-50 rounded-xl border border-purple-100">
@@ -255,12 +255,10 @@ export const SavingsPage: React.FC = () => {
 
       {/* Savings List */}
       <Card className="p-6 bg-white rounded-2xl shadow-sm">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">All Savings & Investments</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">{t.savings.allSavingsInvestments}</h3>
         <div className="space-y-3">
           {savings.length === 0 ? (
-            <p className="text-center text-gray-400 py-8">
-              No savings records yet. Start building your wealth!
-            </p>
+            <p className="text-center text-gray-400 py-8">{t.savings.noRecords}</p>
           ) : (
             savings.map((saving) => (
               <div
@@ -289,7 +287,7 @@ export const SavingsPage: React.FC = () => {
                             : 'bg-indigo-100 text-indigo-700'
                         }`}
                       >
-                        {saving.type.charAt(0).toUpperCase() + saving.type.slice(1)}
+                        {getSavingTypeLabel(saving.type)}
                       </span>
                     </div>
                     <p className="text-sm text-gray-500">

@@ -10,6 +10,7 @@ import { Plus, TrendingDown, Trash2, AlertCircle, Settings } from 'lucide-react'
 import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 import { toast } from 'sonner';
 import { Progress } from '../components/ui/progress';
+import { useT } from '../context/LanguageContext';
 
 const EXPENSE_CATEGORIES = [
   'Food & Dining',
@@ -24,11 +25,12 @@ const EXPENSE_CATEGORIES = [
 
 export const ExpensesPage: React.FC = () => {
   const { expenses, addExpense, deleteExpense, categoryBudgets, setCategoryBudget } = useFinance();
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [isBudgetOpen, setIsBudgetOpen] = useState(false);
   const [budgetCategory, setBudgetCategory] = useState('Food & Dining');
   const [budgetAmount, setBudgetAmount] = useState('');
-  
+
   const [formData, setFormData] = useState({
     amount: '',
     category: 'Food & Dining',
@@ -39,9 +41,9 @@ export const ExpensesPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      toast.error('Please enter a valid amount');
+      toast.error(t.expenses.toast.invalidAmount);
       return;
     }
 
@@ -50,7 +52,7 @@ export const ExpensesPage: React.FC = () => {
       category: formData.category,
       date: formData.date,
       note: formData.note,
-      tags: formData.tags ? formData.tags.split(',').map((t) => t.trim()) : [],
+      tags: formData.tags ? formData.tags.split(',').map((tag) => tag.trim()) : [],
     });
 
     setFormData({
@@ -61,26 +63,25 @@ export const ExpensesPage: React.FC = () => {
       tags: '',
     });
     setIsOpen(false);
-    toast.success('Expense added successfully!');
+    toast.success(t.expenses.toast.added);
   };
 
   const handleDelete = (id: string) => {
     deleteExpense(id);
-    toast.success('Expense deleted');
+    toast.success(t.expenses.toast.deleted);
   };
 
   const handleSetBudget = () => {
     if (!budgetAmount || parseFloat(budgetAmount) <= 0) {
-      toast.error('Please enter a valid budget amount');
+      toast.error(t.expenses.toast.invalidBudget);
       return;
     }
     setCategoryBudget(budgetCategory, parseFloat(budgetAmount));
     setBudgetAmount('');
     setIsBudgetOpen(false);
-    toast.success(`Budget set for ${budgetCategory}`);
+    toast.success(t.expenses.toast.budgetSet(budgetCategory));
   };
 
-  // Monthly calculations
   const currentMonth = new Date();
   const monthStart = startOfMonth(currentMonth);
   const monthEnd = endOfMonth(currentMonth);
@@ -92,7 +93,6 @@ export const ExpensesPage: React.FC = () => {
 
   const totalExpense = monthlyExpenses.reduce((sum, expense) => sum + expense.amount, 0);
 
-  // Category breakdown
   const categoryBreakdown = monthlyExpenses.reduce((acc, expense) => {
     acc[expense.category] = (acc[expense.category] || 0) + expense.amount;
     return acc;
@@ -103,24 +103,24 @@ export const ExpensesPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Expense Tracking</h1>
-          <p className="text-gray-500 mt-1">Monitor your spending</p>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">{t.expenses.title}</h1>
+          <p className="text-gray-500 mt-1">{t.expenses.subtitle}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Dialog open={isBudgetOpen} onOpenChange={setIsBudgetOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="rounded-xl">
                 <Settings className="w-4 h-4 mr-2" />
-                Set Budget
+                {t.expenses.setBudget}
               </Button>
             </DialogTrigger>
             <DialogContent className="rounded-2xl">
               <DialogHeader>
-                <DialogTitle>Set Category Budget</DialogTitle>
+                <DialogTitle>{t.expenses.setCategoryBudget}</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="budget-category">Category</Label>
+                  <Label htmlFor="budget-category">{t.expenses.category}</Label>
                   <Select value={budgetCategory} onValueChange={setBudgetCategory}>
                     <SelectTrigger className="rounded-xl">
                       <SelectValue />
@@ -128,14 +128,14 @@ export const ExpensesPage: React.FC = () => {
                     <SelectContent>
                       {EXPENSE_CATEGORIES.map((cat) => (
                         <SelectItem key={cat} value={cat}>
-                          {cat}
+                          {t.expenses.categories[cat] ?? cat}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="budget-amount">Monthly Budget (Rp)</Label>
+                  <Label htmlFor="budget-amount">{t.expenses.monthlyBudget}</Label>
                   <Input
                     id="budget-amount"
                     type="number"
@@ -149,7 +149,7 @@ export const ExpensesPage: React.FC = () => {
                   onClick={handleSetBudget}
                   className="w-full bg-indigo-600 hover:bg-indigo-700 rounded-xl"
                 >
-                  Set Budget
+                  {t.expenses.setBudget}
                 </Button>
               </div>
             </DialogContent>
@@ -159,16 +159,16 @@ export const ExpensesPage: React.FC = () => {
             <DialogTrigger asChild>
               <Button className="bg-red-600 hover:bg-red-700 rounded-xl">
                 <Plus className="w-4 h-4 mr-2" />
-                Add Expense
+                {t.expenses.addExpense}
               </Button>
             </DialogTrigger>
             <DialogContent className="rounded-2xl">
               <DialogHeader>
-                <DialogTitle>Add New Expense</DialogTitle>
+                <DialogTitle>{t.expenses.addNewExpense}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <Label htmlFor="amount">Amount (Rp)</Label>
+                  <Label htmlFor="amount">{t.expenses.amount}</Label>
                   <Input
                     id="amount"
                     type="number"
@@ -181,7 +181,7 @@ export const ExpensesPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="category">Category</Label>
+                  <Label htmlFor="category">{t.expenses.category}</Label>
                   <Select
                     value={formData.category}
                     onValueChange={(value) => setFormData({ ...formData, category: value })}
@@ -192,7 +192,7 @@ export const ExpensesPage: React.FC = () => {
                     <SelectContent>
                       {EXPENSE_CATEGORIES.map((cat) => (
                         <SelectItem key={cat} value={cat}>
-                          {cat}
+                          {t.expenses.categories[cat] ?? cat}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -200,7 +200,7 @@ export const ExpensesPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="date">Date</Label>
+                  <Label htmlFor="date">{t.expenses.date}</Label>
                   <Input
                     id="date"
                     type="date"
@@ -212,10 +212,10 @@ export const ExpensesPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="note">Note (Optional)</Label>
+                  <Label htmlFor="note">{t.expenses.note}</Label>
                   <Input
                     id="note"
-                    placeholder="What did you buy?"
+                    placeholder={t.expenses.notePlaceholder}
                     value={formData.note}
                     onChange={(e) => setFormData({ ...formData, note: e.target.value })}
                     className="rounded-xl"
@@ -223,10 +223,10 @@ export const ExpensesPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="tags">Tags (Optional, comma-separated)</Label>
+                  <Label htmlFor="tags">{t.expenses.tags}</Label>
                   <Input
                     id="tags"
-                    placeholder="lunch, work"
+                    placeholder={t.expenses.tagsPlaceholder}
                     value={formData.tags}
                     onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
                     className="rounded-xl"
@@ -234,7 +234,7 @@ export const ExpensesPage: React.FC = () => {
                 </div>
 
                 <Button type="submit" className="w-full bg-red-600 hover:bg-red-700 rounded-xl">
-                  Add Expense
+                  {t.expenses.addExpense}
                 </Button>
               </form>
             </DialogContent>
@@ -246,11 +246,13 @@ export const ExpensesPage: React.FC = () => {
       <Card className="p-5 bg-white rounded-2xl shadow-sm">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-sm text-gray-600">Total Expenses (This Month)</p>
+            <p className="text-sm text-gray-600">{t.expenses.totalExpenses}</p>
             <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
               Rp {totalExpense.toLocaleString('id-ID')}
             </p>
-            <p className="text-xs text-gray-500 mt-2">{monthlyExpenses.length} transactions</p>
+            <p className="text-xs text-gray-500 mt-2">
+              {t.expenses.transactions(monthlyExpenses.length)}
+            </p>
           </div>
           <div className="w-10 h-10 bg-red-50 rounded-xl flex items-center justify-center">
             <TrendingDown className="w-5 h-5 text-red-600" />
@@ -261,7 +263,9 @@ export const ExpensesPage: React.FC = () => {
       {/* Category Budgets */}
       {Object.keys(categoryBudgets).length > 0 && (
         <Card className="p-4 sm:p-6 bg-white rounded-2xl shadow-sm">
-          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">Budget Overview</h3>
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-4">
+            {t.expenses.budgetOverview}
+          </h3>
           <div className="space-y-4">
             {Object.entries(categoryBudgets).map(([category, budget]) => {
               const spent = categoryBreakdown[category] || 0;
@@ -272,7 +276,9 @@ export const ExpensesPage: React.FC = () => {
               return (
                 <div key={category}>
                   <div className="flex items-center justify-between mb-2 gap-2">
-                    <span className="text-sm font-medium text-gray-700 truncate">{category}</span>
+                    <span className="text-sm font-medium text-gray-700 truncate">
+                      {t.expenses.categories[category] ?? category}
+                    </span>
                     <span className="text-sm text-gray-500 whitespace-nowrap">
                       Rp {spent.toLocaleString('id-ID')} / Rp {budget.toLocaleString('id-ID')}
                     </span>
@@ -290,7 +296,7 @@ export const ExpensesPage: React.FC = () => {
                   {isOverBudget && (
                     <div className="flex items-center gap-1 mt-1 text-xs text-red-600">
                       <AlertCircle className="w-3 h-3" />
-                      <span>Over budget by Rp {(spent - budget).toLocaleString('id-ID')}</span>
+                      <span>{t.expenses.overBudget((spent - budget).toLocaleString('id-ID'))}</span>
                     </div>
                   )}
                 </div>
@@ -302,12 +308,10 @@ export const ExpensesPage: React.FC = () => {
 
       {/* Expense List */}
       <Card className="p-6 bg-white rounded-2xl shadow-sm">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">All Expenses</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">{t.expenses.allExpenses}</h3>
         <div className="space-y-3">
           {expenses.length === 0 ? (
-            <p className="text-center text-gray-400 py-8">
-              No expense records yet. Track your first expense!
-            </p>
+            <p className="text-center text-gray-400 py-8">{t.expenses.noRecords}</p>
           ) : (
             expenses.map((expense) => (
               <div
@@ -319,7 +323,9 @@ export const ExpensesPage: React.FC = () => {
                     <TrendingDown className="w-5 h-5 sm:w-6 sm:h-6 text-red-600" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-gray-900 truncate">{expense.category}</p>
+                    <p className="font-semibold text-gray-900 truncate">
+                      {t.expenses.categories[expense.category] ?? expense.category}
+                    </p>
                     <p className="text-sm text-gray-500">
                       {format(parseISO(expense.date), 'MMM dd, yyyy')}
                     </p>

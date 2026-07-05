@@ -6,13 +6,13 @@ import {
   TrendingDown,
   Heart,
   PiggyBank,
-  Menu,
   X,
   Wallet,
   User,
 } from 'lucide-react';
 import { cn } from '../components/ui/utils';
 import { useSession } from '../../lib/auth';
+import { useT } from '../context/LanguageContext';
 
 interface SidebarProps {
   isOpen?: boolean;
@@ -22,19 +22,19 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
   const location = useLocation();
   const { data: session } = useSession();
+  const t = useT();
 
   const navItems = [
-    { path: '/', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/income', label: 'Income', icon: TrendingUp },
-    { path: '/expenses', label: 'Expenses', icon: TrendingDown },
-    { path: '/wishlist', label: 'Wishlist', icon: Heart },
-    { path: '/savings', label: 'Savings', icon: PiggyBank },
-    { path: '/wallet', label: 'Wallet', icon: Wallet },
+    { path: '/', label: t.sidebar.dashboard, icon: LayoutDashboard },
+    { path: '/income', label: t.sidebar.income, icon: TrendingUp },
+    { path: '/expenses', label: t.sidebar.expenses, icon: TrendingDown },
+    { path: '/wishlist', label: t.sidebar.wishlist, icon: Heart },
+    { path: '/savings', label: t.sidebar.savings, icon: PiggyBank },
+    { path: '/wallet', label: t.sidebar.wallet, icon: Wallet },
   ];
 
   const userName = session?.user?.name || 'User';
   const userEmail = session?.user?.email || '';
-  const userInitial = userName.charAt(0).toUpperCase();
 
   return (
     <>

@@ -10,15 +10,19 @@ import { Plus, Wallet as WalletIcon, Trash2, TrendingUp, TrendingDown, ChevronDo
 import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 import { PageTransition } from '../components/PageTransition';
+import { useT } from '../context/LanguageContext';
 
-const WALLET_TYPE_CONFIG = {
-  cash: { icon: '💰', label: 'Dompet Fisik', color: 'bg-amber-50 border-amber-200' },
-  ewallet: { icon: '📱', label: 'E-Wallet', color: 'bg-blue-50 border-blue-200' },
-  bank: { icon: '🏦', label: 'Bank', color: 'bg-emerald-50 border-emerald-200' },
+const WALLET_TYPES = ['cash', 'ewallet', 'bank'] as const;
+const WALLET_ICONS: Record<string, string> = { cash: '💰', ewallet: '📱', bank: '🏦' };
+const WALLET_COLORS: Record<string, string> = {
+  cash: 'bg-amber-50 border-amber-200',
+  ewallet: 'bg-blue-50 border-blue-200',
+  bank: 'bg-emerald-50 border-emerald-200',
 };
 
 export const WalletPage: React.FC = () => {
   const { wallets, addWallet, deleteWallet, addWalletTransaction, deleteWalletTransaction } = useFinance();
+  const t = useT();
   const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [isTxOpen, setIsTxOpen] = useState(false);
   const [selectedWalletId, setSelectedWalletId] = useState<string>('');
@@ -42,12 +46,12 @@ export const WalletPage: React.FC = () => {
   const handleAddWallet = (e: React.FormEvent) => {
     e.preventDefault();
     if (!walletForm.name || !walletForm.initialBalance) {
-      toast.error('Please fill in all fields');
+      toast.error(t.wallet.toast.fillAllFields);
       return;
     }
     const amount = parseFloat(walletForm.initialBalance);
     if (amount < 0) {
-      toast.error('Please enter a valid amount');
+      toast.error(t.wallet.toast.invalidAmount);
       return;
     }
 
@@ -59,24 +63,18 @@ export const WalletPage: React.FC = () => {
 
     setWalletForm({ name: '', walletType: 'cash', initialBalance: '' });
     setIsWalletOpen(false);
-    toast.success(`${walletForm.name} berhasil ditambahkan!`);
+    toast.success(t.wallet.toast.walletAdded(walletForm.name));
   };
 
   const handleDeleteWallet = (id: string, name: string) => {
     deleteWallet(id);
-    toast.success(`${name} berhasil dihapus`);
-  };
-
-  const handleOpenTx = (walletId: string) => {
-    setSelectedWalletId(walletId);
-    setTxForm({ type: 'topup', amount: '', note: '', date: format(new Date(), 'yyyy-MM-dd') });
-    setIsTxOpen(true);
+    toast.success(t.wallet.toast.walletDeleted(name));
   };
 
   const handleAddTx = (e: React.FormEvent) => {
     e.preventDefault();
     if (!txForm.amount || parseFloat(txForm.amount) <= 0) {
-      toast.error('Please enter a valid amount');
+      toast.error(t.wallet.toast.invalidAmount);
       return;
     }
 
@@ -89,13 +87,13 @@ export const WalletPage: React.FC = () => {
 
     setIsTxOpen(false);
     toast.success(
-      txForm.type === 'topup' ? 'Saldo berhasil ditambahkan!' : 'Pengeluaran berhasil dicatat!'
+      txForm.type === 'topup' ? t.wallet.toast.topupSuccess : t.wallet.toast.expenseSuccess
     );
   };
 
   const handleDeleteTx = (walletId: string, txId: string) => {
     deleteWalletTransaction(walletId, txId);
-    toast.success('Transaksi berhasil dihapus');
+    toast.success(t.wallet.toast.txDeleted);
   };
 
   const toggleExpand = (walletId: string) => {
@@ -115,26 +113,26 @@ export const WalletPage: React.FC = () => {
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Wallet</h1>
-            <p className="text-gray-500 mt-1">Kelola saldo dompet Anda</p>
+            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">{t.wallet.title}</h1>
+            <p className="text-gray-500 mt-1">{t.wallet.subtitle}</p>
           </div>
           <Dialog open={isWalletOpen} onOpenChange={setIsWalletOpen}>
             <DialogTrigger asChild>
               <Button className="bg-indigo-600 hover:bg-indigo-700 rounded-xl">
                 <Plus className="w-4 h-4 mr-2" />
-                Tambah Dompet
+                {t.wallet.addWallet}
               </Button>
             </DialogTrigger>
             <DialogContent className="rounded-2xl">
               <DialogHeader>
-                <DialogTitle>Tambah Dompet Baru</DialogTitle>
+                <DialogTitle>{t.wallet.addNewWallet}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleAddWallet} className="space-y-4">
                 <div>
-                  <Label htmlFor="wallet-name">Nama Dompet</Label>
+                  <Label htmlFor="wallet-name">{t.wallet.walletName}</Label>
                   <Input
                     id="wallet-name"
-                    placeholder="Dompet Fisik, GoPay, BCA, dll."
+                    placeholder={t.wallet.walletNamePlaceholder}
                     value={walletForm.name}
                     onChange={(e) => setWalletForm({ ...walletForm, name: e.target.value })}
                     className="rounded-xl"
@@ -143,7 +141,7 @@ export const WalletPage: React.FC = () => {
                 </div>
 
                 <div>
-                  <Label htmlFor="wallet-type">Tipe</Label>
+                  <Label htmlFor="wallet-type">{t.wallet.walletType}</Label>
                   <Select
                     value={walletForm.walletType}
                     onValueChange={(value: 'cash' | 'ewallet' | 'bank') =>
@@ -154,15 +152,17 @@ export const WalletPage: React.FC = () => {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="cash">💰 Dompet Fisik</SelectItem>
-                      <SelectItem value="ewallet">📱 E-Wallet</SelectItem>
-                      <SelectItem value="bank">🏦 Bank</SelectItem>
+                      {WALLET_TYPES.map((type) => (
+                        <SelectItem key={type} value={type}>
+                          {WALLET_ICONS[type]} {t.wallet.typeLabels[type]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div>
-                  <Label htmlFor="wallet-balance">Saldo Awal (Rp)</Label>
+                  <Label htmlFor="wallet-balance">{t.wallet.initialBalance}</Label>
                   <Input
                     id="wallet-balance"
                     type="number"
@@ -174,11 +174,8 @@ export const WalletPage: React.FC = () => {
                   />
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full bg-indigo-600 hover:bg-indigo-700 rounded-xl"
-                >
-                  Tambah Dompet
+                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 rounded-xl">
+                  {t.wallet.addWallet}
                 </Button>
               </form>
             </DialogContent>
@@ -189,11 +186,13 @@ export const WalletPage: React.FC = () => {
         <Card className="p-6 bg-gradient-to-br from-indigo-600 to-purple-700 rounded-2xl shadow-sm text-white">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-indigo-200">Total Saldo</p>
+              <p className="text-sm text-indigo-200">{t.wallet.totalBalance}</p>
               <p className="text-2xl sm:text-3xl font-bold mt-2 break-words">
                 Rp {totalBalance.toLocaleString('id-ID')}
               </p>
-              <p className="text-xs text-indigo-300 mt-2">{wallets.length} dompet aktif</p>
+              <p className="text-xs text-indigo-300 mt-2">
+                {t.wallet.activeWallets(wallets.length)}
+              </p>
             </div>
             <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
               <WalletIcon className="w-6 h-6 text-white" />
@@ -203,40 +202,42 @@ export const WalletPage: React.FC = () => {
 
         {/* Wallet Cards */}
         <div>
-          <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">Dompet Anda</h2>
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3">
+            {t.wallet.yourWallets}
+          </h2>
           {wallets.length === 0 ? (
             <Card className="p-8 bg-white rounded-2xl shadow-sm">
-              <p className="text-center text-gray-400">
-                Belum ada dompet. Tambahkan dompet pertama Anda!
-              </p>
+              <p className="text-center text-gray-400">{t.wallet.noWallets}</p>
             </Card>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {wallets.map((wallet) => {
-                const config = WALLET_TYPE_CONFIG[wallet.walletType];
+                const colorClass = WALLET_COLORS[wallet.walletType];
+                const icon = WALLET_ICONS[wallet.walletType];
+                const typeLabel = t.wallet.typeLabels[wallet.walletType];
                 const isExpanded = expandedWallets.has(wallet.id);
                 const totalTopup = wallet.transactions
-                  .filter((t) => t.type === 'topup')
-                  .reduce((sum, t) => sum + t.amount, 0);
+                  .filter((tx) => tx.type === 'topup')
+                  .reduce((sum, tx) => sum + tx.amount, 0);
                 const totalExpense = wallet.transactions
-                  .filter((t) => t.type === 'expense')
-                  .reduce((sum, t) => sum + t.amount, 0);
+                  .filter((tx) => tx.type === 'expense')
+                  .reduce((sum, tx) => sum + tx.amount, 0);
 
                 return (
                   <div key={wallet.id} className="space-y-3">
                     <Card
-                      className={`p-4 sm:p-5 rounded-2xl shadow-sm border ${config.color} hover:shadow-md transition-shadow`}
+                      className={`p-4 sm:p-5 rounded-2xl shadow-sm border ${colorClass} hover:shadow-md transition-shadow`}
                     >
                       <div className="space-y-4">
                         {/* Header */}
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
-                              <span className="text-xl">{config.icon}</span>
+                              <span className="text-xl">{icon}</span>
                               <h3 className="font-semibold text-gray-900 truncate">{wallet.name}</h3>
                             </div>
                             <span className="inline-block px-2 py-0.5 text-xs rounded-full mt-1 bg-white/80 text-gray-600 border border-gray-200">
-                              {config.label}
+                              {typeLabel}
                             </span>
                           </div>
                           <button
@@ -250,7 +251,7 @@ export const WalletPage: React.FC = () => {
 
                         {/* Balance */}
                         <div>
-                          <p className="text-xs text-gray-600">Saldo Saat Ini</p>
+                          <p className="text-xs text-gray-600">{t.wallet.currentBalance}</p>
                           <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
                             Rp {wallet.currentBalance.toLocaleString('id-ID')}
                           </p>
@@ -275,17 +276,12 @@ export const WalletPage: React.FC = () => {
                             className="flex-1 bg-green-600 hover:bg-green-700 rounded-xl text-xs"
                             onClick={() => {
                               setSelectedWalletId(wallet.id);
-                              setTxForm({
-                                type: 'topup',
-                                amount: '',
-                                note: '',
-                                date: format(new Date(), 'yyyy-MM-dd'),
-                              });
+                              setTxForm({ type: 'topup', amount: '', note: '', date: format(new Date(), 'yyyy-MM-dd') });
                               setIsTxOpen(true);
                             }}
                           >
                             <Plus className="w-3 h-3 mr-1" />
-                            Top Up
+                            {t.wallet.topUpBtn}
                           </Button>
                           <Button
                             size="sm"
@@ -293,17 +289,12 @@ export const WalletPage: React.FC = () => {
                             className="flex-1 rounded-xl text-xs"
                             onClick={() => {
                               setSelectedWalletId(wallet.id);
-                              setTxForm({
-                                type: 'expense',
-                                amount: '',
-                                note: '',
-                                date: format(new Date(), 'yyyy-MM-dd'),
-                              });
+                              setTxForm({ type: 'expense', amount: '', note: '', date: format(new Date(), 'yyyy-MM-dd') });
                               setIsTxOpen(true);
                             }}
                           >
                             <TrendingDown className="w-3 h-3 mr-1" />
-                            Expense
+                            {t.wallet.expenseBtn}
                           </Button>
                         </div>
 
@@ -318,7 +309,9 @@ export const WalletPage: React.FC = () => {
                             ) : (
                               <ChevronDown className="w-3 h-3" />
                             )}
-                            {isExpanded ? 'Sembunyikan' : 'Lihat'} riwayat ({wallet.transactions.length})
+                            {isExpanded
+                              ? t.wallet.hideHistory(wallet.transactions.length)
+                              : t.wallet.showHistory(wallet.transactions.length)}
                           </button>
                         )}
                       </div>
@@ -385,17 +378,17 @@ export const WalletPage: React.FC = () => {
           <DialogContent className="rounded-2xl">
             <DialogHeader>
               <DialogTitle>
-                {txForm.type === 'topup' ? 'Top Up Saldo' : 'Catat Pengeluaran'}
+                {txForm.type === 'topup' ? t.wallet.topUpBalance : t.wallet.recordExpense}
               </DialogTitle>
               {selectedWallet && (
                 <p className="text-sm text-gray-500">
-                  {WALLET_TYPE_CONFIG[selectedWallet.walletType].icon} {selectedWallet.name}
+                  {WALLET_ICONS[selectedWallet.walletType]} {selectedWallet.name}
                 </p>
               )}
             </DialogHeader>
             <form onSubmit={handleAddTx} className="space-y-4">
               <div>
-                <Label htmlFor="tx-type">Tipe Transaksi</Label>
+                <Label htmlFor="tx-type">{t.wallet.transactionType}</Label>
                 <Select
                   value={txForm.type}
                   onValueChange={(value: 'topup' | 'expense') =>
@@ -407,17 +400,17 @@ export const WalletPage: React.FC = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="topup">
-                      <span className="text-green-600">↑ Top Up (Tambah Saldo)</span>
+                      <span className="text-green-600">↑ {t.wallet.topup}</span>
                     </SelectItem>
                     <SelectItem value="expense">
-                      <span className="text-red-600">↓ Expense (Kurangi Saldo)</span>
+                      <span className="text-red-600">↓ {t.wallet.expense}</span>
                     </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
-                <Label htmlFor="tx-amount">Jumlah (Rp)</Label>
+                <Label htmlFor="tx-amount">{t.wallet.amount}</Label>
                 <Input
                   id="tx-amount"
                   type="number"
@@ -430,7 +423,7 @@ export const WalletPage: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="tx-date">Tanggal</Label>
+                <Label htmlFor="tx-date">{t.wallet.date}</Label>
                 <Input
                   id="tx-date"
                   type="date"
@@ -442,10 +435,10 @@ export const WalletPage: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="tx-note">Catatan (Opsional)</Label>
+                <Label htmlFor="tx-note">{t.wallet.note}</Label>
                 <Input
                   id="tx-note"
-                  placeholder="Top up dari ATM, Bayar makan siang, dll."
+                  placeholder={t.wallet.notePlaceholder}
                   value={txForm.note}
                   onChange={(e) => setTxForm({ ...txForm, note: e.target.value })}
                   className="rounded-xl"
@@ -460,7 +453,7 @@ export const WalletPage: React.FC = () => {
                     : 'bg-red-600 hover:bg-red-700'
                 }`}
               >
-                {txForm.type === 'topup' ? 'Top Up' : 'Catat Pengeluaran'}
+                {txForm.type === 'topup' ? t.wallet.topUpBtn : t.wallet.recordExpense}
               </Button>
             </form>
           </DialogContent>

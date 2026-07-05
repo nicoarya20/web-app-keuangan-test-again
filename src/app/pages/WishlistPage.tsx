@@ -10,9 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Plus, Heart, Trash2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '../components/ui/progress';
+import { useT } from '../context/LanguageContext';
 
 export const WishlistPage: React.FC = () => {
   const { wishlist, addWishlistItem, deleteWishlistItem, updateWishlistItem } = useFinance();
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -24,14 +26,14 @@ export const WishlistPage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name || !formData.targetPrice) {
-      toast.error('Please fill in all required fields');
+      toast.error(t.wishlist.toast.requiredFields);
       return;
     }
 
     if (parseFloat(formData.targetPrice) <= 0) {
-      toast.error('Please enter a valid target price');
+      toast.error(t.wishlist.toast.invalidPrice);
       return;
     }
 
@@ -43,40 +45,29 @@ export const WishlistPage: React.FC = () => {
       note: formData.note,
     });
 
-    setFormData({
-      name: '',
-      targetPrice: '',
-      currentProgress: '',
-      priority: 'medium',
-      note: '',
-    });
+    setFormData({ name: '', targetPrice: '', currentProgress: '', priority: 'medium', note: '' });
     setIsOpen(false);
-    toast.success('Wishlist item added!');
+    toast.success(t.wishlist.toast.added);
   };
 
   const handleDelete = (id: string) => {
     deleteWishlistItem(id);
-    toast.success('Item removed from wishlist');
+    toast.success(t.wishlist.toast.deleted);
   };
 
   const handleUpdateProgress = (id: string, amount: string) => {
     const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount < 0) return;
-    
     updateWishlistItem(id, { currentProgress: parsedAmount });
-    toast.success('Progress updated!');
+    toast.success(t.wishlist.toast.progressUpdated);
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'high':
-        return 'bg-red-100 text-red-700 border-red-200';
-      case 'medium':
-        return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'low':
-        return 'bg-green-100 text-green-700 border-green-200';
-      default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+      case 'high': return 'bg-red-100 text-red-700 border-red-200';
+      case 'medium': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'low': return 'bg-green-100 text-green-700 border-green-200';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
@@ -88,26 +79,26 @@ export const WishlistPage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Wishlist</h1>
-          <p className="text-gray-500 mt-1">Track your savings goals</p>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">{t.wishlist.title}</h1>
+          <p className="text-gray-500 mt-1">{t.wishlist.subtitle}</p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button className="bg-pink-600 hover:bg-pink-700 rounded-xl">
               <Plus className="w-4 h-4 mr-2" />
-              Add Item
+              {t.wishlist.addItem}
             </Button>
           </DialogTrigger>
           <DialogContent className="rounded-2xl">
             <DialogHeader>
-              <DialogTitle>Add Wishlist Item</DialogTitle>
+              <DialogTitle>{t.wishlist.addWishlistItem}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label htmlFor="name">Item Name</Label>
+                <Label htmlFor="name">{t.wishlist.itemName}</Label>
                 <Input
                   id="name"
-                  placeholder="MacBook Pro, Holiday Trip, etc."
+                  placeholder={t.wishlist.itemNamePlaceholder}
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="rounded-xl"
@@ -116,7 +107,7 @@ export const WishlistPage: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="targetPrice">Target Price (Rp)</Label>
+                <Label htmlFor="targetPrice">{t.wishlist.targetPrice}</Label>
                 <Input
                   id="targetPrice"
                   type="number"
@@ -129,7 +120,7 @@ export const WishlistPage: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="currentProgress">Current Savings (Rp)</Label>
+                <Label htmlFor="currentProgress">{t.wishlist.currentSavings}</Label>
                 <Input
                   id="currentProgress"
                   type="number"
@@ -141,7 +132,7 @@ export const WishlistPage: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="priority">Priority</Label>
+                <Label htmlFor="priority">{t.wishlist.priority}</Label>
                 <Select
                   value={formData.priority}
                   onValueChange={(value: 'low' | 'medium' | 'high') =>
@@ -152,18 +143,18 @@ export const WishlistPage: React.FC = () => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="low">Low</SelectItem>
-                    <SelectItem value="medium">Medium</SelectItem>
-                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="low">{t.wishlist.priorityLabels.low}</SelectItem>
+                    <SelectItem value="medium">{t.wishlist.priorityLabels.medium}</SelectItem>
+                    <SelectItem value="high">{t.wishlist.priorityLabels.high}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div>
-                <Label htmlFor="note">Motivation Note (Optional)</Label>
+                <Label htmlFor="note">{t.wishlist.motivationNote}</Label>
                 <Textarea
                   id="note"
-                  placeholder="Why do you want this?"
+                  placeholder={t.wishlist.motivationPlaceholder}
                   value={formData.note}
                   onChange={(e) => setFormData({ ...formData, note: e.target.value })}
                   className="rounded-xl"
@@ -172,7 +163,7 @@ export const WishlistPage: React.FC = () => {
               </div>
 
               <Button type="submit" className="w-full bg-pink-600 hover:bg-pink-700 rounded-xl">
-                Add to Wishlist
+                {t.wishlist.addToWishlist}
               </Button>
             </form>
           </DialogContent>
@@ -184,11 +175,11 @@ export const WishlistPage: React.FC = () => {
         <Card className="p-5 bg-white rounded-2xl shadow-sm">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Wishlist Value</p>
+              <p className="text-sm text-gray-600">{t.wishlist.totalValue}</p>
               <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
                 Rp {totalWishlistValue.toLocaleString('id-ID')}
               </p>
-              <p className="text-xs text-gray-500 mt-2">{wishlist.length} items</p>
+              <p className="text-xs text-gray-500 mt-2">{t.wishlist.items(wishlist.length)}</p>
             </div>
             <div className="w-10 h-10 bg-pink-50 rounded-xl flex items-center justify-center">
               <Heart className="w-5 h-5 text-pink-600" />
@@ -199,14 +190,14 @@ export const WishlistPage: React.FC = () => {
         <Card className="p-5 bg-white rounded-2xl shadow-sm">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Saved</p>
+              <p className="text-sm text-gray-600">{t.wishlist.totalSaved}</p>
               <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
                 Rp {totalSaved.toLocaleString('id-ID')}
               </p>
               <p className="text-xs text-gray-500 mt-2">
                 {totalWishlistValue > 0
-                  ? `${((totalSaved / totalWishlistValue) * 100).toFixed(1)}% of goal`
-                  : '0% of goal'}
+                  ? t.wishlist.ofGoal(((totalSaved / totalWishlistValue) * 100).toFixed(1))
+                  : t.wishlist.ofGoal('0')}
               </p>
             </div>
             <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
@@ -220,14 +211,13 @@ export const WishlistPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {wishlist.length === 0 ? (
           <Card className="p-8 col-span-full bg-white rounded-2xl shadow-sm">
-            <p className="text-center text-gray-400">
-              No wishlist items yet. Start tracking your dreams!
-            </p>
+            <p className="text-center text-gray-400">{t.wishlist.noItems}</p>
           </Card>
         ) : (
           wishlist.map((item) => {
             const progressPercentage = (item.currentProgress / item.targetPrice) * 100;
             const remaining = item.targetPrice - item.currentProgress;
+            const priorityLabel = t.wishlist.priorityLabels[item.priority] ?? item.priority;
 
             return (
               <Card key={item.id} className="p-4 sm:p-5 bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow">
@@ -237,11 +227,9 @@ export const WishlistPage: React.FC = () => {
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-base sm:text-lg text-gray-900 truncate">{item.name}</h3>
                       <span
-                        className={`inline-block px-2 py-1 text-xs rounded-full mt-2 border ${getPriorityColor(
-                          item.priority
-                        )}`}
+                        className={`inline-block px-2 py-1 text-xs rounded-full mt-2 border ${getPriorityColor(item.priority)}`}
                       >
-                        {item.priority.charAt(0).toUpperCase() + item.priority.slice(1)} Priority
+                        {priorityLabel} {t.wishlist.prioritySuffix}
                       </span>
                     </div>
                     <button
@@ -256,7 +244,7 @@ export const WishlistPage: React.FC = () => {
                   {/* Target & Progress */}
                   <div>
                     <div className="flex justify-between text-sm mb-2">
-                      <span className="text-gray-600">Progress</span>
+                      <span className="text-gray-600">{t.wishlist.progress}</span>
                       <span className="font-medium text-gray-900">
                         {progressPercentage.toFixed(1)}%
                       </span>
@@ -270,7 +258,7 @@ export const WishlistPage: React.FC = () => {
 
                   {/* Remaining */}
                   <div className="p-3 bg-gray-50 rounded-xl">
-                    <p className="text-xs sm:text-sm text-gray-600">Remaining</p>
+                    <p className="text-xs sm:text-sm text-gray-600">{t.wishlist.remaining}</p>
                     <p className="text-base sm:text-lg font-bold text-gray-900">
                       Rp {remaining.toLocaleString('id-ID')}
                     </p>
@@ -287,7 +275,7 @@ export const WishlistPage: React.FC = () => {
                   <div className="flex gap-2">
                     <Input
                       type="number"
-                      placeholder="Add savings..."
+                      placeholder={t.wishlist.addSavingsPlaceholder}
                       className="rounded-xl flex-1 text-base"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
@@ -308,7 +296,7 @@ export const WishlistPage: React.FC = () => {
                         }
                       }}
                     >
-                      Update
+                      {t.wishlist.update}
                     </Button>
                   </div>
                 </div>

@@ -10,11 +10,13 @@ import { Switch } from '../components/ui/switch';
 import { Plus, TrendingUp, Trash2, CalendarIcon } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
+import { useT } from '../context/LanguageContext';
 
 const INCOME_CATEGORIES = ['Salary', 'Freelance', 'Side Hustle', 'Bonus', 'Investment', 'Other'];
 
 export const IncomePage: React.FC = () => {
   const { incomes, addIncome, deleteIncome } = useFinance();
+  const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState({
     amount: '',
@@ -26,9 +28,9 @@ export const IncomePage: React.FC = () => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      toast.error('Please enter a valid amount');
+      toast.error(t.income.toast.invalidAmount);
       return;
     }
 
@@ -48,12 +50,12 @@ export const IncomePage: React.FC = () => {
       note: '',
     });
     setIsOpen(false);
-    toast.success('Income added successfully!');
+    toast.success(t.income.toast.added);
   };
 
   const handleDelete = (id: string) => {
     deleteIncome(id);
-    toast.success('Income deleted');
+    toast.success(t.income.toast.deleted);
   };
 
   const totalIncome = incomes.reduce((sum, income) => sum + income.amount, 0);
@@ -66,23 +68,23 @@ export const IncomePage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Income Management</h1>
-          <p className="text-gray-500 mt-1">Track your income sources</p>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">{t.income.title}</h1>
+          <p className="text-gray-500 mt-1">{t.income.subtitle}</p>
         </div>
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
           <DialogTrigger asChild>
             <Button className="bg-indigo-600 hover:bg-indigo-700 rounded-xl">
               <Plus className="w-4 h-4 mr-2" />
-              Add Income
+              {t.income.addIncome}
             </Button>
           </DialogTrigger>
           <DialogContent className="rounded-2xl">
             <DialogHeader>
-              <DialogTitle>Add New Income</DialogTitle>
+              <DialogTitle>{t.income.addNewIncome}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <Label htmlFor="amount">Amount (Rp)</Label>
+                <Label htmlFor="amount">{t.income.amount}</Label>
                 <Input
                   id="amount"
                   type="number"
@@ -95,7 +97,7 @@ export const IncomePage: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="category">Category</Label>
+                <Label htmlFor="category">{t.income.category}</Label>
                 <Select
                   value={formData.category}
                   onValueChange={(value) => setFormData({ ...formData, category: value })}
@@ -106,7 +108,7 @@ export const IncomePage: React.FC = () => {
                   <SelectContent>
                     {INCOME_CATEGORIES.map((cat) => (
                       <SelectItem key={cat} value={cat}>
-                        {cat}
+                        {t.income.categories[cat] ?? cat}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -114,7 +116,7 @@ export const IncomePage: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="date">Date</Label>
+                <Label htmlFor="date">{t.income.date}</Label>
                 <Input
                   id="date"
                   type="date"
@@ -126,7 +128,7 @@ export const IncomePage: React.FC = () => {
               </div>
 
               <div className="flex items-center justify-between">
-                <Label htmlFor="recurring">Recurring (Monthly)</Label>
+                <Label htmlFor="recurring">{t.income.recurring}</Label>
                 <Switch
                   id="recurring"
                   checked={formData.recurring}
@@ -137,10 +139,10 @@ export const IncomePage: React.FC = () => {
               </div>
 
               <div>
-                <Label htmlFor="note">Note (Optional)</Label>
+                <Label htmlFor="note">{t.income.note}</Label>
                 <Input
                   id="note"
-                  placeholder="Additional details..."
+                  placeholder={t.income.notePlaceholder}
                   value={formData.note}
                   onChange={(e) => setFormData({ ...formData, note: e.target.value })}
                   className="rounded-xl"
@@ -148,7 +150,7 @@ export const IncomePage: React.FC = () => {
               </div>
 
               <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 rounded-xl">
-                Add Income
+                {t.income.addIncome}
               </Button>
             </form>
           </DialogContent>
@@ -160,11 +162,11 @@ export const IncomePage: React.FC = () => {
         <Card className="p-5 bg-white rounded-2xl shadow-sm">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-gray-600">Total Income</p>
+              <p className="text-sm text-gray-600">{t.income.totalIncome}</p>
               <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
                 Rp {totalIncome.toLocaleString('id-ID')}
               </p>
-              <p className="text-xs text-gray-500 mt-2">All time</p>
+              <p className="text-xs text-gray-500 mt-2">{t.income.allTime}</p>
             </div>
             <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
               <TrendingUp className="w-5 h-5 text-green-600" />
@@ -175,11 +177,11 @@ export const IncomePage: React.FC = () => {
         <Card className="p-5 bg-white rounded-2xl shadow-sm">
           <div className="flex items-start justify-between">
             <div>
-              <p className="text-sm text-gray-600">Monthly Recurring</p>
+              <p className="text-sm text-gray-600">{t.income.monthlyRecurring}</p>
               <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
                 Rp {monthlyRecurring.toLocaleString('id-ID')}
               </p>
-              <p className="text-xs text-gray-500 mt-2">Expected monthly</p>
+              <p className="text-xs text-gray-500 mt-2">{t.income.expectedMonthly}</p>
             </div>
             <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
               <CalendarIcon className="w-5 h-5 text-indigo-600" />
@@ -190,10 +192,10 @@ export const IncomePage: React.FC = () => {
 
       {/* Income List */}
       <Card className="p-6 bg-white rounded-2xl shadow-sm">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">All Income</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">{t.income.allIncome}</h3>
         <div className="space-y-3">
           {incomes.length === 0 ? (
-            <p className="text-center text-gray-400 py-8">No income records yet. Add your first income!</p>
+            <p className="text-center text-gray-400 py-8">{t.income.noRecords}</p>
           ) : (
             incomes.map((income) => (
               <div
@@ -206,10 +208,12 @@ export const IncomePage: React.FC = () => {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-semibold text-gray-900 truncate">{income.category}</p>
+                      <p className="font-semibold text-gray-900 truncate">
+                        {t.income.categories[income.category] ?? income.category}
+                      </p>
                       {income.recurring && (
                         <span className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-full">
-                          Recurring
+                          {t.income.recurringBadge}
                         </span>
                       )}
                     </div>

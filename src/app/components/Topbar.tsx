@@ -4,6 +4,7 @@ import { signOut } from '../../lib/auth';
 import { useSession } from '../../lib/auth';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
+import { useLanguage, useT } from '../context/LanguageContext';
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -12,10 +13,15 @@ interface TopbarProps {
 export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
   const { data: session } = useSession();
   const navigate = useNavigate();
+  const { lang, setLang } = useLanguage();
+  const t = useT();
 
   const handleLogout = async () => {
-    await signOut();
-    toast.success('Logged out successfully');
+    try {
+      await signOut();
+    } catch (err) {
+      console.error('signOut error:', err);
+    }
     navigate('/login');
   };
 
@@ -36,7 +42,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
             <Search className="w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search transactions..."
+              placeholder={t.topbar.searchPlaceholder}
               className="bg-transparent outline-none text-sm w-full text-gray-700 placeholder:text-gray-400"
             />
           </div>
@@ -44,6 +50,30 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
 
         {/* Right Section */}
         <div className="flex items-center gap-3">
+          {/* Language Toggle */}
+          <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden text-xs font-medium">
+            <button
+              onClick={() => setLang('id')}
+              className={`px-2.5 py-1.5 transition-colors ${
+                lang === 'id'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              ID
+            </button>
+            <button
+              onClick={() => setLang('en')}
+              className={`px-2.5 py-1.5 transition-colors ${
+                lang === 'en'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              EN
+            </button>
+          </div>
+
           <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative">
             <Bell className="w-5 h-5 text-gray-600" />
             <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
@@ -65,7 +95,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
             <button
               onClick={handleLogout}
               className="p-2 hover:bg-red-50 rounded-lg transition-colors group"
-              title="Logout"
+              title={t.topbar.logout}
             >
               <LogOut className="w-4 h-4 text-gray-500 group-hover:text-red-600" />
             </button>
