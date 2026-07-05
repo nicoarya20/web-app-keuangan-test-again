@@ -80,7 +80,23 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
   const response = await app.fetch(request)
 
   res.statusCode = response.status
-  response.headers.forEach((value, key) => res.setHeader(key, value))
+
+  // Set-Cookie must be forwarded as an array — res.setHeader overwrites
+  // previous values, so multiple Set-Cookie headers (session_token,
+  // session_data, etc.) would be collapsed to one, breaking auth cookies.
+  const cookies: string[] =
+    typeof (response.headers as any).getSetCookie === 'function'
+      ? (response.headers as any).getSetCookie()
+      : []
+
+  response.headers.forEach((value, key) => {
+    if (key.toLowerCase() === 'set-cookie') return  // handled separately below
+    res.setHeader(key, value)
+  })
+
+  if (cookies.length > 0) {
+    res.setHeader('Set-Cookie', cookies)
+  }
 
   const buf = await response.arrayBuffer()
   res.end(Buffer.from(buf))

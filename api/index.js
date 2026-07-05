@@ -53841,7 +53841,14 @@ async function handler(req, res) {
   });
   const response = await app.fetch(request);
   res.statusCode = response.status;
-  response.headers.forEach((value, key) => res.setHeader(key, value));
+  const cookies = typeof response.headers.getSetCookie === "function" ? response.headers.getSetCookie() : [];
+  response.headers.forEach((value, key) => {
+    if (key.toLowerCase() === "set-cookie") return;
+    res.setHeader(key, value);
+  });
+  if (cookies.length > 0) {
+    res.setHeader("Set-Cookie", cookies);
+  }
   const buf = await response.arrayBuffer();
   res.end(Buffer.from(buf));
 }
