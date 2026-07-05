@@ -12,20 +12,27 @@ const router = new Hono()
 // POST /api/auth/sign-out — Logout
 // GET  /api/auth/get-session — Get current session
 
-router.on(['POST', 'GET'], '/*', async (c) => {
-  const path = c.req.path
-  console.log('[auth] handling:', c.req.method, path)
+// Intercept sign-in/social BEFORE calling auth.handler to isolate hang
+router.post('/sign-in/social', async (c) => {
+  process.stdout.write('[auth-debug] POST /sign-in/social intercepted\n')
+  const body = await c.req.json().catch(() => null)
+  process.stdout.write('[auth-debug] body: ' + JSON.stringify(body) + '\n')
+
   const deadline = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`auth handler timed out after 8s: ${path}`)), 8000)
+    setTimeout(() => reject(new Error('sign-in/social timed out after 8s')), 8000)
   )
   try {
-    const res = await Promise.race([auth.handler(c.req.raw), deadline])
-    console.log('[auth] done:', c.req.method, path, res.status)
+    const res = await Promise.race([auth.handler(c.req.raw.clone()), deadline])
+    process.stdout.write('[auth-debug] sign-in/social done: ' + res.status + '\n')
     return res
   } catch (err: any) {
-    console.error('[auth] error:', err.message)
+    process.stdout.write('[auth-debug] sign-in/social error: ' + err.message + '\n')
     return c.json({ error: err.message }, 500)
   }
+})
+
+router.on(['POST', 'GET'], '/*', async (c) => {
+  return auth.handler(c.req.raw)
 })
 
 // ============================================================

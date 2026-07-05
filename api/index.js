@@ -53672,20 +53672,24 @@ var optionalAuthMiddleware = createMiddleware2(async (c, next) => {
 
 // src/server/routes/auth.ts
 var router2 = new Hono2();
-router2.on(["POST", "GET"], "/*", async (c) => {
-  const path2 = c.req.path;
-  console.log("[auth] handling:", c.req.method, path2);
+router2.post("/sign-in/social", async (c) => {
+  process.stdout.write("[auth-debug] POST /sign-in/social intercepted\n");
+  const body = await c.req.json().catch(() => null);
+  process.stdout.write("[auth-debug] body: " + JSON.stringify(body) + "\n");
   const deadline = new Promise(
-    (_, reject) => setTimeout(() => reject(new Error(`auth handler timed out after 8s: ${path2}`)), 8e3)
+    (_, reject) => setTimeout(() => reject(new Error("sign-in/social timed out after 8s")), 8e3)
   );
   try {
-    const res = await Promise.race([auth.handler(c.req.raw), deadline]);
-    console.log("[auth] done:", c.req.method, path2, res.status);
+    const res = await Promise.race([auth.handler(c.req.raw.clone()), deadline]);
+    process.stdout.write("[auth-debug] sign-in/social done: " + res.status + "\n");
     return res;
   } catch (err) {
-    console.error("[auth] error:", err.message);
+    process.stdout.write("[auth-debug] sign-in/social error: " + err.message + "\n");
     return c.json({ error: err.message }, 500);
   }
+});
+router2.on(["POST", "GET"], "/*", async (c) => {
+  return auth.handler(c.req.raw);
 });
 router2.get("/me", authMiddleware, async (c) => {
   const user = c.get("user");
