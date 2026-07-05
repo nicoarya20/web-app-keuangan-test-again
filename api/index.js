@@ -53051,32 +53051,13 @@ var optionalAuthMiddleware = createMiddleware2(async (c, next) => {
 
 // src/server/routes/auth.ts
 var router2 = new Hono2();
-router2.post("/sign-in/social", async (c) => {
-  process.stdout.write("[auth-debug] POST /sign-in/social intercepted\n");
-  const body = await c.req.json().catch(() => null);
-  process.stdout.write("[auth-debug] body: " + JSON.stringify(body) + "\n");
-  const deadline = new Promise(
-    (_, reject) => setTimeout(() => reject(new Error("sign-in/social timed out after 8s")), 8e3)
-  );
-  try {
-    const res = await Promise.race([auth.handler(c.req.raw.clone()), deadline]);
-    process.stdout.write("[auth-debug] sign-in/social done: " + res.status + "\n");
-    return res;
-  } catch (err) {
-    process.stdout.write("[auth-debug] sign-in/social error: " + err.message + "\n");
-    return c.json({ error: err.message }, 500);
-  }
-});
-router2.on(["POST", "GET"], "/*", async (c) => {
+router2.on(["POST", "GET"], "/*", (c) => {
   return auth.handler(c.req.raw);
 });
 router2.get("/me", authMiddleware, async (c) => {
   const user = c.get("user");
   const session = c.get("session");
-  return c.json({
-    user,
-    session
-  });
+  return c.json({ user, session });
 });
 var auth_default = router2;
 
@@ -53814,10 +53795,6 @@ var app = new Hono2();
 app.use("*", logger());
 app.use("*", errorHandler2);
 app.get("/", (c) => c.json({ message: "\u{1F680} Backend Web-App Keuangan", version: "2.0.0" }));
-app.post("/api/test-post", async (c) => {
-  const body = await c.req.json().catch(() => ({ err: "no body" }));
-  return c.json({ ok: true, received: body, time: Date.now() });
-});
 app.get("/api/health", async (c) => {
   try {
     const { db: db2 } = await Promise.resolve().then(() => (init_db(), db_exports));
@@ -53826,27 +53803,6 @@ app.get("/api/health", async (c) => {
   } catch (err) {
     return c.json({ ok: false, error: err.message }, 500);
   }
-});
-app.get("/api/debug", async (c) => {
-  const { db: db2 } = await Promise.resolve().then(() => (init_db(), db_exports));
-  const out = {
-    env: {
-      BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ? "set" : "MISSING",
-      BETTER_AUTH_URL: process.env.BETTER_AUTH_URL || "NOT SET (using default)",
-      GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? "set" : "MISSING",
-      GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ? "set" : "MISSING",
-      DATABASE_URL: process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:([^@]+)@/, ":***@") : "MISSING"
-    }
-  };
-  for (const table of ["verification", "user", "session", "account"]) {
-    try {
-      const r = await db2.query(`SELECT count(*) FROM "${table}"`);
-      out[table] = "exists (rows: " + r.rows[0].count + ")";
-    } catch (err) {
-      out[table] = "ERROR: " + err.message;
-    }
-  }
-  return c.json(out);
 });
 app.route("/api/auth", auth_default);
 app.route("/api/users", user_default);
