@@ -8,5 +8,4 @@ dist/
 MIND/
 .DISKUSI/
 
-# Generated API bundle (built by esbuild during Vercel deploy)
-api/index.js
+# api/index.js committed to git so Vercel detects the function before build
