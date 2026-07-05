@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { logger } from 'hono/logger'
-import { getRequestListener } from '@hono/node-server'
+import type { IncomingMessage, ServerResponse } from 'http'
 
 import { errorHandler } from '../src/server/middleware/errorHandler'
 import authRoutes from '../src/server/routes/auth'
@@ -20,7 +20,6 @@ app.use('*', errorHandler)
 
 app.get('/', (c) => c.json({ message: '🚀 Backend Web-App Keuangan', version: '2.0.0' }))
 
-// Test: does POST body work at all?
 app.post('/api/test-post', async (c) => {
   const body = await c.req.json().catch(() => ({ err: 'no body' }))
   return c.json({ ok: true, received: body, time: Date.now() })
@@ -36,9 +35,7 @@ app.get('/api/health', async (c) => {
   }
 })
 
-// Debug: test verification table + env vars
 app.get('/api/debug', async (c) => {
-  process.stdout.write('[debug] GET /api/debug\n')
   const { db } = await import('../src/server/lib/db')
   const out: Record<string, any> = {
     env: {
@@ -70,5 +67,48 @@ app.route('/api/wishlists', wishlistRoutes)
 app.route('/api/budgets', budgetRoutes)
 app.route('/api/dashboard', dashboardRoutes)
 
+// Read POST body explicitly — Vercel's serverless runtime does not stream
+// the body via data events the way @hono/node-server expects, causing all
+// POST requests to hang. We buffer the body ourselves before building the
+// Fetch API Request so Hono can read it normally.
+function readBody(req: IncomingMessage): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = []
+    req.on('data', (chunk: Buffer) => chunks.push(chunk))
+    req.on('end', () => resolve(Buffer.concat(chunks)))
+    req.on('error', reject)
+    // If body is already read (Vercel buffers it), resume the stream
+    if (req.readableEnded) resolve(Buffer.alloc(0))
+  })
+}
+
 export const config = { runtime: 'nodejs' }
-export default getRequestListener(app.fetch)
+
+export default async function handler(req: IncomingMessage, res: ServerResponse) {
+  const host = req.headers.host ?? 'localhost'
+  const url = `https://${host}${req.url ?? '/'}`
+
+  const hasBody = req.method !== 'GET' && req.method !== 'HEAD'
+  const rawBody = hasBody ? await readBody(req) : undefined
+
+  const headers = new Headers()
+  for (const [key, val] of Object.entries(req.headers)) {
+    if (val == null) continue
+    if (Array.isArray(val)) val.forEach((v) => headers.append(key, v))
+    else headers.set(key, val)
+  }
+
+  const request = new Request(url, {
+    method: req.method ?? 'GET',
+    headers,
+    body: rawBody?.length ? rawBody : undefined,
+  })
+
+  const response = await app.fetch(request)
+
+  res.statusCode = response.status
+  response.headers.forEach((value, key) => res.setHeader(key, value))
+
+  const buf = await response.arrayBuffer()
+  res.end(Buffer.from(buf))
+}
