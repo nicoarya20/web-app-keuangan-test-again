@@ -53552,7 +53552,10 @@ var esm_default = import_lib.default;
 var { Pool: Pool2, types: types2 } = esm_default;
 types2.setTypeParser(20, (val) => parseInt(val, 10));
 var globalForDb = globalThis;
-var db = globalForDb._db ?? new Pool2({ connectionString: process.env.DATABASE_URL });
+var db = globalForDb._db ?? new Pool2({
+  connectionString: process.env.DATABASE_URL,
+  max: 1
+});
 if (process.env.NODE_ENV !== "production") globalForDb._db = db;
 
 // src/server/lib/auth.ts
