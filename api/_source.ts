@@ -30,6 +30,30 @@ app.get('/api/health', async (c) => {
   }
 })
 
+// Debug: test verification table + env vars
+app.get('/api/debug', async (c) => {
+  process.stdout.write('[debug] GET /api/debug\n')
+  const { db } = await import('../src/server/lib/db')
+  const out: Record<string, any> = {
+    env: {
+      BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET ? 'set' : 'MISSING',
+      BETTER_AUTH_URL: process.env.BETTER_AUTH_URL || 'NOT SET (using default)',
+      GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? 'set' : 'MISSING',
+      GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ? 'set' : 'MISSING',
+      DATABASE_URL: process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:([^@]+)@/, ':***@') : 'MISSING',
+    }
+  }
+  for (const table of ['verification', 'user', 'session', 'account']) {
+    try {
+      const r = await db.query(`SELECT count(*) FROM "${table}"`)
+      out[table] = 'exists (rows: ' + r.rows[0].count + ')'
+    } catch (err: any) {
+      out[table] = 'ERROR: ' + err.message
+    }
+  }
+  return c.json(out)
+})
+
 app.route('/api/auth', authRoutes)
 app.route('/api/users', userRoutes)
 app.route('/api/incomes', incomeRoutes)
