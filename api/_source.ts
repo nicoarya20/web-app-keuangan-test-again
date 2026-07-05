@@ -20,6 +20,12 @@ app.use('*', errorHandler)
 
 app.get('/', (c) => c.json({ message: '🚀 Backend Web-App Keuangan', version: '2.0.0' }))
 
+// Test: does POST body work at all?
+app.post('/api/test-post', async (c) => {
+  const body = await c.req.json().catch(() => ({ err: 'no body' }))
+  return c.json({ ok: true, received: body, time: Date.now() })
+})
+
 app.get('/api/health', async (c) => {
   try {
     const { db } = await import('../src/server/lib/db')

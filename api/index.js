@@ -54435,6 +54435,10 @@ var app = new Hono2();
 app.use("*", logger());
 app.use("*", errorHandler2);
 app.get("/", (c) => c.json({ message: "\u{1F680} Backend Web-App Keuangan", version: "2.0.0" }));
+app.post("/api/test-post", async (c) => {
+  const body = await c.req.json().catch(() => ({ err: "no body" }));
+  return c.json({ ok: true, received: body, time: Date.now() });
+});
 app.get("/api/health", async (c) => {
   try {
     const { db: db2 } = await Promise.resolve().then(() => (init_db(), db_exports));
