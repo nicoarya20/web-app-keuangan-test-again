@@ -8,5 +8,7 @@ const globalForDb = globalThis as unknown as { _db: pg.Pool }
 export const db = globalForDb._db ?? new Pool({
   connectionString: process.env.DATABASE_URL,
   max: 1,
+  connectionTimeoutMillis: 5000,  // fail fast if DB unreachable, don't hang forever
+  idleTimeoutMillis: 10000,
 })
 if (process.env.NODE_ENV !== 'production') globalForDb._db = db

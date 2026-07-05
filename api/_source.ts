@@ -20,6 +20,16 @@ app.use('*', errorHandler)
 
 app.get('/', (c) => c.json({ message: '🚀 Backend Web-App Keuangan', version: '2.0.0' }))
 
+app.get('/api/health', async (c) => {
+  try {
+    const { db } = await import('../src/server/lib/db')
+    const result = await db.query('SELECT NOW() as time')
+    return c.json({ ok: true, db: 'connected', time: result.rows[0].time })
+  } catch (err: any) {
+    return c.json({ ok: false, error: err.message }, 500)
+  }
+})
+
 app.route('/api/auth', authRoutes)
 app.route('/api/users', userRoutes)
 app.route('/api/incomes', incomeRoutes)

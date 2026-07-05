@@ -27999,6 +27999,50 @@ var require_lib2 = __commonJS({
   }
 });
 
+// node_modules/pg/esm/index.mjs
+var import_lib, Client, Pool, Connection, types, Query, DatabaseError, escapeIdentifier, escapeLiteral, Result, TypeOverrides, defaults, esm_default;
+var init_esm2 = __esm({
+  "node_modules/pg/esm/index.mjs"() {
+    import_lib = __toESM(require_lib2(), 1);
+    Client = import_lib.default.Client;
+    Pool = import_lib.default.Pool;
+    Connection = import_lib.default.Connection;
+    types = import_lib.default.types;
+    Query = import_lib.default.Query;
+    DatabaseError = import_lib.default.DatabaseError;
+    escapeIdentifier = import_lib.default.escapeIdentifier;
+    escapeLiteral = import_lib.default.escapeLiteral;
+    Result = import_lib.default.Result;
+    TypeOverrides = import_lib.default.TypeOverrides;
+    defaults = import_lib.default.defaults;
+    esm_default = import_lib.default;
+  }
+});
+
+// src/server/lib/db.ts
+var db_exports = {};
+__export(db_exports, {
+  db: () => db
+});
+var Pool2, types2, globalForDb, db;
+var init_db = __esm({
+  "src/server/lib/db.ts"() {
+    "use strict";
+    init_esm2();
+    ({ Pool: Pool2, types: types2 } = esm_default);
+    types2.setTypeParser(20, (val) => parseInt(val, 10));
+    globalForDb = globalThis;
+    db = globalForDb._db ?? new Pool2({
+      connectionString: process.env.DATABASE_URL,
+      max: 1,
+      connectionTimeoutMillis: 5e3,
+      // fail fast if DB unreachable, don't hang forever
+      idleTimeoutMillis: 1e4
+    });
+    if (process.env.NODE_ENV !== "production") globalForDb._db = db;
+  }
+});
+
 // node_modules/hono/dist/compose.js
 var compose = (middleware, onError, onNotFound) => {
   return (context, next) => {
@@ -53533,32 +53577,8 @@ init_error_codes();
 init_id();
 init_json();
 
-// node_modules/pg/esm/index.mjs
-var import_lib = __toESM(require_lib2(), 1);
-var Client = import_lib.default.Client;
-var Pool = import_lib.default.Pool;
-var Connection = import_lib.default.Connection;
-var types = import_lib.default.types;
-var Query = import_lib.default.Query;
-var DatabaseError = import_lib.default.DatabaseError;
-var escapeIdentifier = import_lib.default.escapeIdentifier;
-var escapeLiteral = import_lib.default.escapeLiteral;
-var Result = import_lib.default.Result;
-var TypeOverrides = import_lib.default.TypeOverrides;
-var defaults = import_lib.default.defaults;
-var esm_default = import_lib.default;
-
-// src/server/lib/db.ts
-var { Pool: Pool2, types: types2 } = esm_default;
-types2.setTypeParser(20, (val) => parseInt(val, 10));
-var globalForDb = globalThis;
-var db = globalForDb._db ?? new Pool2({
-  connectionString: process.env.DATABASE_URL,
-  max: 1
-});
-if (process.env.NODE_ENV !== "production") globalForDb._db = db;
-
 // src/server/lib/auth.ts
+init_db();
 var auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: (process.env.BETTER_AUTH_URL || "https://web-app-keuangan-test-again.vercel.app") + "/api/auth",
@@ -53666,6 +53686,7 @@ router2.get("/me", authMiddleware, async (c) => {
 var auth_default = router2;
 
 // src/server/routes/user.ts
+init_db();
 import { randomUUID } from "crypto";
 var router3 = new Hono2();
 router3.get("/email/:email", async (c) => {
@@ -53728,6 +53749,7 @@ router3.delete("/:id", async (c) => {
 var user_default = router3;
 
 // src/server/routes/income.ts
+init_db();
 import { randomUUID as randomUUID2 } from "crypto";
 var router4 = new Hono2();
 router4.use("*", authMiddleware);
@@ -53825,6 +53847,7 @@ router4.delete("/:id", async (c) => {
 var income_default = router4;
 
 // src/server/routes/expense.ts
+init_db();
 import { randomUUID as randomUUID3 } from "crypto";
 var router5 = new Hono2();
 router5.use("*", authMiddleware);
@@ -53925,6 +53948,7 @@ router5.delete("/:id", async (c) => {
 var expense_default = router5;
 
 // src/server/routes/wallet.ts
+init_db();
 import { randomUUID as randomUUID4 } from "crypto";
 var router6 = new Hono2();
 router6.use("*", authMiddleware);
@@ -54074,6 +54098,7 @@ router6.delete("/transactions/:id", async (c) => {
 var wallet_default = router6;
 
 // src/server/routes/saving.ts
+init_db();
 import { randomUUID as randomUUID5 } from "crypto";
 var router7 = new Hono2();
 router7.use("*", authMiddleware);
@@ -54142,6 +54167,7 @@ router7.delete("/:id", async (c) => {
 var saving_default = router7;
 
 // src/server/routes/wishlist.ts
+init_db();
 import { randomUUID as randomUUID6 } from "crypto";
 var router8 = new Hono2();
 router8.use("*", authMiddleware);
@@ -54230,6 +54256,7 @@ router8.delete("/:id", async (c) => {
 var wishlist_default = router8;
 
 // src/server/routes/budget.ts
+init_db();
 import { randomUUID as randomUUID7 } from "crypto";
 var router9 = new Hono2();
 router9.use("*", authMiddleware);
@@ -54295,6 +54322,7 @@ router9.delete("/:id", async (c) => {
 var budget_default = router9;
 
 // src/server/routes/dashboard.ts
+init_db();
 var router10 = new Hono2();
 router10.use("*", authMiddleware);
 router10.get("/", async (c) => {
@@ -54391,6 +54419,15 @@ var app = new Hono2();
 app.use("*", logger());
 app.use("*", errorHandler2);
 app.get("/", (c) => c.json({ message: "\u{1F680} Backend Web-App Keuangan", version: "2.0.0" }));
+app.get("/api/health", async (c) => {
+  try {
+    const { db: db2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+    const result = await db2.query("SELECT NOW() as time");
+    return c.json({ ok: true, db: "connected", time: result.rows[0].time });
+  } catch (err) {
+    return c.json({ ok: false, error: err.message }, 500);
+  }
+});
 app.route("/api/auth", auth_default);
 app.route("/api/users", user_default);
 app.route("/api/incomes", income_default);
