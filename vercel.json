@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build && node_modules/.bin/esbuild api/_source.ts --bundle --platform=node --target=node20 --format=esm --outfile=api/index.js --external:pg-native",
+  "buildCommand": "npm run build && node_modules/.bin/esbuild api/_source.ts --bundle --platform=node --target=node20 --format=esm --outfile=api/index.js --external:pg-native --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",
   "outputDirectory": "dist",
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api" },
