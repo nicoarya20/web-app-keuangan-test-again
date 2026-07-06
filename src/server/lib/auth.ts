@@ -3,8 +3,9 @@ import { db } from './db'
 
 export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
-  baseURL: (process.env.BETTER_AUTH_URL || 'https://web-app-keuangan-test-again.vercel.app') + '/api/auth',
+  baseURL: (process.env.BETTER_AUTH_URL || 'https://web-app-keuanganku.vercel.app') + '/api/auth',
   trustedOrigins: [
+    'https://web-app-keuanganku.vercel.app',
     'https://web-app-keuangan-test-again.vercel.app',
     'http://localhost:5173',
     'http://localhost:5174',

@@ -1,6 +1,6 @@
-// Di dev: pakai relative path /api → Vite proxy ke backend (tidak ada CORS)
-// Di prod: Vercel same-origin, /api juga cukup
-const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.PROD ? 'https://web-app-keuangan-test-again.vercel.app/api' : '/api')
+// Di dev: relative /api → Vite proxy ke backend (tidak ada CORS)
+// Di prod: selalu relative /api → same-origin, bekerja di domain apapun
+const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
