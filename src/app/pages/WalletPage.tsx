@@ -6,7 +6,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, Wallet as WalletIcon, Trash2, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Wallet as WalletIcon, Trash2, TrendingUp, TrendingDown, ChevronDown, ChevronUp, ArrowLeftRight } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 import { PageTransition } from '../components/PageTransition';
@@ -21,11 +21,19 @@ const WALLET_COLORS: Record<string, string> = {
 };
 
 export const WalletPage: React.FC = () => {
-  const { wallets, addWallet, deleteWallet, addWalletTransaction, deleteWalletTransaction } = useFinance();
+  const { wallets, addWallet, deleteWallet, addWalletTransaction, deleteWalletTransaction, transferBetweenWallets } = useFinance();
   const t = useT();
   const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [isTxOpen, setIsTxOpen] = useState(false);
+  const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [selectedWalletId, setSelectedWalletId] = useState<string>('');
+  const [transferForm, setTransferForm] = useState({
+    fromWalletId: '',
+    toWalletId: '',
+    amount: '',
+    note: '',
+    date: format(new Date(), 'yyyy-MM-dd'),
+  });
   const [expandedWallets, setExpandedWallets] = useState<Set<string>>(new Set());
 
   const [walletForm, setWalletForm] = useState({
@@ -89,6 +97,30 @@ export const WalletPage: React.FC = () => {
     toast.success(
       txForm.type === 'topup' ? t.wallet.toast.topupSuccess : t.wallet.toast.expenseSuccess
     );
+  };
+
+  const handleTransfer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = parseFloat(transferForm.amount);
+    if (!amount || amount <= 0) { toast.error(t.wallet.toast.invalidAmount); return; }
+    if (!transferForm.toWalletId) { toast.error(t.wallet.toast.fillAllFields); return; }
+    if (transferForm.fromWalletId === transferForm.toWalletId) { toast.error(t.wallet.toast.fillAllFields); return; }
+
+    try {
+      await transferBetweenWallets({
+        fromWalletId: transferForm.fromWalletId,
+        toWalletId: transferForm.toWalletId,
+        amount,
+        note: transferForm.note || undefined,
+        date: transferForm.date,
+      });
+      setIsTransferOpen(false);
+      setTransferForm({ fromWalletId: '', toWalletId: '', amount: '', note: '', date: format(new Date(), 'yyyy-MM-dd') });
+      toast.success(t.wallet.toast.transferSuccess);
+    } catch (err: any) {
+      const msg = err?.message?.includes('Insufficient') ? t.wallet.toast.insufficientBalance : err?.message;
+      toast.error(msg || t.wallet.toast.invalidAmount);
+    }
   };
 
   const handleDeleteTx = (walletId: string, txId: string) => {
@@ -270,10 +302,10 @@ export const WalletPage: React.FC = () => {
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex gap-2">
+                        <div className="grid grid-cols-3 gap-1.5">
                           <Button
                             size="sm"
-                            className="flex-1 bg-green-600 hover:bg-green-700 rounded-xl text-xs"
+                            className="bg-green-600 hover:bg-green-700 rounded-xl text-xs px-2"
                             onClick={() => {
                               setSelectedWalletId(wallet.id);
                               setTxForm({ type: 'topup', amount: '', note: '', date: format(new Date(), 'yyyy-MM-dd') });
@@ -286,7 +318,7 @@ export const WalletPage: React.FC = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="flex-1 rounded-xl text-xs"
+                            className="rounded-xl text-xs px-2"
                             onClick={() => {
                               setSelectedWalletId(wallet.id);
                               setTxForm({ type: 'expense', amount: '', note: '', date: format(new Date(), 'yyyy-MM-dd') });
@@ -295,6 +327,25 @@ export const WalletPage: React.FC = () => {
                           >
                             <TrendingDown className="w-3 h-3 mr-1" />
                             {t.wallet.expenseBtn}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="rounded-xl text-xs px-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                            onClick={() => {
+                              setTransferForm({
+                                fromWalletId: wallet.id,
+                                toWalletId: '',
+                                amount: '',
+                                note: '',
+                                date: format(new Date(), 'yyyy-MM-dd'),
+                              });
+                              setIsTransferOpen(true);
+                            }}
+                            disabled={wallets.length < 2}
+                          >
+                            <ArrowLeftRight className="w-3 h-3 mr-1" />
+                            {t.wallet.transferBtn}
                           </Button>
                         </div>
 
@@ -321,48 +372,56 @@ export const WalletPage: React.FC = () => {
                     {isExpanded && wallet.transactions.length > 0 && (
                       <Card className="p-3 bg-white rounded-2xl shadow-sm">
                         <div className="space-y-2">
-                          {wallet.transactions.map((tx) => (
-                            <div
-                              key={tx.id}
-                              className="flex items-center justify-between gap-2 p-2.5 bg-gray-50 rounded-xl"
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                                <div
-                                  className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                                    tx.type === 'topup' ? 'bg-green-100' : 'bg-red-100'
-                                  }`}
-                                >
-                                  {tx.type === 'topup' ? (
-                                    <TrendingUp className="w-4 h-4 text-green-600" />
-                                  ) : (
-                                    <TrendingDown className="w-4 h-4 text-red-600" />
-                                  )}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <p
-                                    className={`text-xs font-semibold ${
-                                      tx.type === 'topup' ? 'text-green-600' : 'text-red-600'
-                                    }`}
-                                  >
-                                    {tx.type === 'topup' ? '+' : '-'}Rp {tx.amount.toLocaleString('id-ID')}
-                                  </p>
-                                  {tx.note && (
-                                    <p className="text-xs text-gray-500 truncate">{tx.note}</p>
-                                  )}
-                                  <p className="text-xs text-gray-400">
-                                    {format(parseISO(tx.date), 'MMM dd, yyyy')}
-                                  </p>
-                                </div>
-                              </div>
-                              <button
-                                onClick={() => handleDeleteTx(wallet.id, tx.id)}
-                                className="p-1.5 hover:bg-red-100 rounded-md transition-colors flex-shrink-0"
-                                aria-label="Delete transaction"
+                          {wallet.transactions.map((tx) => {
+                            const isTransfer = tx.type === 'transfer_out' || tx.type === 'transfer_in';
+                            const isPositive = tx.type === 'topup' || tx.type === 'transfer_in';
+                            const iconBg = isTransfer ? 'bg-indigo-100' : isPositive ? 'bg-green-100' : 'bg-red-100';
+                            const iconColor = isTransfer ? 'text-indigo-600' : isPositive ? 'text-green-600' : 'text-red-600';
+                            const amountColor = isPositive ? 'text-green-600' : 'text-red-600';
+                            const label = tx.type === 'transfer_out'
+                              ? t.wallet.transferOut
+                              : tx.type === 'transfer_in'
+                              ? t.wallet.transferIn
+                              : null;
+
+                            return (
+                              <div
+                                key={tx.id}
+                                className="flex items-center justify-between gap-2 p-2.5 bg-gray-50 rounded-xl"
                               >
-                                <Trash2 className="w-3 h-3 text-red-400" />
-                              </button>
-                            </div>
-                          ))}
+                                <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${iconBg}`}>
+                                    {isTransfer ? (
+                                      <ArrowLeftRight className={`w-4 h-4 ${iconColor}`} />
+                                    ) : isPositive ? (
+                                      <TrendingUp className={`w-4 h-4 ${iconColor}`} />
+                                    ) : (
+                                      <TrendingDown className={`w-4 h-4 ${iconColor}`} />
+                                    )}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className={`text-xs font-semibold ${amountColor}`}>
+                                      {isPositive ? '+' : '-'}Rp {tx.amount.toLocaleString('id-ID')}
+                                    </p>
+                                    {label && <p className="text-xs text-indigo-500">{label}</p>}
+                                    {tx.note && <p className="text-xs text-gray-500 truncate">{tx.note}</p>}
+                                    <p className="text-xs text-gray-400">
+                                      {format(parseISO(tx.date), 'MMM dd, yyyy')}
+                                    </p>
+                                  </div>
+                                </div>
+                                {!isTransfer && (
+                                  <button
+                                    onClick={() => handleDeleteTx(wallet.id, tx.id)}
+                                    className="p-1.5 hover:bg-red-100 rounded-md transition-colors flex-shrink-0"
+                                    aria-label="Delete transaction"
+                                  >
+                                    <Trash2 className="w-3 h-3 text-red-400" />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </Card>
                     )}
@@ -372,6 +431,94 @@ export const WalletPage: React.FC = () => {
             </div>
           )}
         </div>
+
+        {/* Transfer Dialog */}
+        <Dialog open={isTransferOpen} onOpenChange={setIsTransferOpen}>
+          <DialogContent className="rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>{t.wallet.transferTitle}</DialogTitle>
+            </DialogHeader>
+            <form onSubmit={handleTransfer} className="space-y-4">
+              <div>
+                <Label>{t.wallet.fromWallet}</Label>
+                <Select
+                  value={transferForm.fromWalletId}
+                  onValueChange={(value) => setTransferForm({ ...transferForm, fromWalletId: value, toWalletId: '' })}
+                >
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {wallets.map((w) => (
+                      <SelectItem key={w.id} value={w.id}>
+                        {WALLET_ICONS[w.walletType]} {w.name} — Rp {w.currentBalance.toLocaleString('id-ID')}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>{t.wallet.toWallet}</Label>
+                <Select
+                  value={transferForm.toWalletId}
+                  onValueChange={(value) => setTransferForm({ ...transferForm, toWalletId: value })}
+                >
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {wallets
+                      .filter((w) => w.id !== transferForm.fromWalletId)
+                      .map((w) => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {WALLET_ICONS[w.walletType]} {w.name} — Rp {w.currentBalance.toLocaleString('id-ID')}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>{t.wallet.amount}</Label>
+                <Input
+                  type="number"
+                  placeholder="100000"
+                  value={transferForm.amount}
+                  onChange={(e) => setTransferForm({ ...transferForm, amount: e.target.value })}
+                  className="rounded-xl"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label>{t.wallet.date}</Label>
+                <Input
+                  type="date"
+                  value={transferForm.date}
+                  onChange={(e) => setTransferForm({ ...transferForm, date: e.target.value })}
+                  className="rounded-xl"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label>{t.wallet.note}</Label>
+                <Input
+                  placeholder={t.wallet.notePlaceholder}
+                  value={transferForm.note}
+                  onChange={(e) => setTransferForm({ ...transferForm, note: e.target.value })}
+                  className="rounded-xl"
+                />
+              </div>
+
+              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 rounded-xl">
+                <ArrowLeftRight className="w-4 h-4 mr-2" />
+                {t.wallet.transferBtn}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         {/* Transaction Dialog */}
         <Dialog open={isTxOpen} onOpenChange={setIsTxOpen}>

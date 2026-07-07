@@ -140,6 +140,74 @@ router.post('/transactions', async (c) => {
   }
 })
 
+router.post('/transfer', async (c) => {
+  const body = await c.req.json()
+  const user = c.get('user')
+  const { fromWalletId, toWalletId, amount, note, date } = body
+
+  if (fromWalletId === toWalletId)
+    return c.json({ error: 'Cannot transfer to the same wallet' }, 400)
+  if (!amount || amount <= 0)
+    return c.json({ error: 'Invalid amount' }, 400)
+
+  const dateValue = date.includes('T') ? new Date(date) : new Date(date + 'T00:00:00.000Z')
+
+  const client = await db.connect()
+  try {
+    await client.query('BEGIN')
+
+    const { rows: [fromWallet] } = await client.query(
+      `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+      [fromWalletId, user.id]
+    )
+    if (!fromWallet) {
+      await client.query('ROLLBACK')
+      return c.json({ error: 'Source wallet not found' }, 404)
+    }
+    if (Number(fromWallet.currentBalance) < amount) {
+      await client.query('ROLLBACK')
+      return c.json({ error: 'Insufficient balance' }, 400)
+    }
+
+    const { rows: [toWallet] } = await client.query(
+      `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+      [toWalletId, user.id]
+    )
+    if (!toWallet) {
+      await client.query('ROLLBACK')
+      return c.json({ error: 'Destination wallet not found' }, 404)
+    }
+
+    await client.query(
+      `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "createdAt", "updatedAt")
+       VALUES ($1, $2, 'TRANSFER_OUT', $3, $4, $5, NOW(), NOW())`,
+      [randomUUID(), fromWalletId, amount, note ?? null, dateValue]
+    )
+    await client.query(
+      `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "createdAt", "updatedAt")
+       VALUES ($1, $2, 'TRANSFER_IN', $3, $4, $5, NOW(), NOW())`,
+      [randomUUID(), toWalletId, amount, note ?? null, dateValue]
+    )
+
+    const { rows: [updatedFrom] } = await client.query(
+      `UPDATE wallets SET "currentBalance" = "currentBalance" - $1, "updatedAt" = NOW() WHERE id = $2 RETURNING *`,
+      [amount, fromWalletId]
+    )
+    const { rows: [updatedTo] } = await client.query(
+      `UPDATE wallets SET "currentBalance" = "currentBalance" + $1, "updatedAt" = NOW() WHERE id = $2 RETURNING *`,
+      [amount, toWalletId]
+    )
+
+    await client.query('COMMIT')
+    return c.json({ fromWallet: updatedFrom, toWallet: updatedTo }, 201)
+  } catch (e) {
+    await client.query('ROLLBACK')
+    throw e
+  } finally {
+    client.release()
+  }
+})
+
 router.delete('/transactions/:id', async (c) => {
   const { id } = c.req.param()
 

@@ -80,7 +80,7 @@ export interface Wallet {
 export interface WalletTransaction {
   id: string
   walletId: string
-  type: 'TOPUP' | 'EXPENSE'
+  type: 'TOPUP' | 'EXPENSE' | 'TRANSFER_OUT' | 'TRANSFER_IN'
   amount: number
   note: string | null
   date: string
@@ -235,6 +235,11 @@ export const api = {
       }),
     delete: (id: string) =>
       request<{ success: boolean }>(`/wallets/transactions/${id}`, { method: 'DELETE' }),
+    transfer: (data: { fromWalletId: string; toWalletId: string; amount: number; note?: string; date: string }) =>
+      request<{ fromWallet: Wallet; toWallet: Wallet }>('/wallets/transfer', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
   },
 
   // --- SAVING ---

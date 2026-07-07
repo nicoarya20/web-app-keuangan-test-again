@@ -52,7 +52,7 @@ export interface Saving {
 
 export interface WalletTransaction {
   id: string
-  type: 'topup' | 'expense'
+  type: 'topup' | 'expense' | 'transfer_out' | 'transfer_in'
   amount: number
   note?: string
   date: string
@@ -92,6 +92,7 @@ interface FinanceContextType {
   deleteSaving: (id: string) => Promise<void>
   deleteWallet: (id: string) => Promise<void>
   deleteWalletTransaction: (walletId: string, txId: string) => Promise<void>
+  transferBetweenWallets: (data: { fromWalletId: string; toWalletId: string; amount: number; note?: string; date: string }) => Promise<void>
   setCategoryBudget: (category: string, budget: number) => Promise<void>
   loading: boolean
   error: string | null
@@ -160,7 +161,7 @@ function mapWallet(api: ApiWallet): Wallet {
 function mapWalletTransaction(api: ApiWalletTransaction): WalletTransaction {
   return {
     id: api.id,
-    type: api.type.toLowerCase() as 'topup' | 'expense',
+    type: api.type.toLowerCase() as 'topup' | 'expense' | 'transfer_out' | 'transfer_in',
     amount: api.amount,
     note: api.note || undefined,
     date: api.date.split('T')[0],
@@ -388,6 +389,16 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
     [userId]
   )
 
+  const transferBetweenWallets = useCallback(
+    async (data: { fromWalletId: string; toWalletId: string; amount: number; note?: string; date: string }) => {
+      await api.walletTx.transfer(data)
+      if (!userId) return
+      const walletsRes = await api.wallet.list(userId)
+      setWallets(walletsRes.map(mapWallet))
+    },
+    [userId]
+  )
+
   const setCategoryBudget = useCallback(
     async (category: string, budget: number) => {
       await api.budget.create({ category, amount: budget })
@@ -419,6 +430,7 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
         deleteSaving,
         deleteWallet,
         deleteWalletTransaction,
+        transferBetweenWallets,
         setCategoryBudget,
         loading,
         error,
