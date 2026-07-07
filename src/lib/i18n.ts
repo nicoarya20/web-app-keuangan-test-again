@@ -26,6 +26,8 @@ const en = {
     highestSpending: (cat: string, amount: string) =>
       `Highest spending in category ${cat} (Rp ${amount})`,
     budgetWarning: (cat: string) => `Budget for category ${cat} has reached 80%!`,
+    totalNetWorth: 'Total Net Worth',
+    netWorthBreakdown: (wallet: string, saving: string) => `Wallet Rp ${wallet} + Savings Rp ${saving}`,
     expensesByCategory: 'Expenses by Category',
     noExpenseData: 'No expense data yet',
     cashflow: 'Cashflow (Last 7 Days)',
@@ -235,6 +237,8 @@ const id: Translation = {
     highestSpending: (cat: string, amount: string) =>
       `Pengeluaran tertinggi di kategori ${cat} (Rp ${amount})`,
     budgetWarning: (cat: string) => `Budget kategori ${cat} sudah mencapai 80%!`,
+    totalNetWorth: 'Total Harta',
+    netWorthBreakdown: (wallet: string, saving: string) => `Dompet Rp ${wallet} + Tabungan Rp ${saving}`,
     expensesByCategory: 'Pengeluaran per Kategori',
     noExpenseData: 'Belum ada data pengeluaran',
     cashflow: 'Arus Kas (7 Hari Terakhir)',

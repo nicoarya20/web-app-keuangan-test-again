@@ -11,6 +11,7 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Loader2,
+  BarChart3,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, Legend } from 'recharts';
 import { format, parseISO } from 'date-fns';
@@ -97,6 +98,27 @@ export const Dashboard: React.FC = () => {
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">{t.dashboard.title}</h1>
           <p className="text-gray-500 mt-1">{t.dashboard.subtitle}</p>
         </div>
+
+        {/* Net Worth Card */}
+        <Card className="p-5 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl shadow-sm text-white">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-sm text-indigo-100">{t.dashboard.totalNetWorth}</p>
+              <p className="text-3xl font-bold mt-1">
+                Rp {(stats.totalWalletBalance + stats.totalSavings).toLocaleString('id-ID')}
+              </p>
+              <p className="text-xs text-indigo-200 mt-2">
+                {t.dashboard.netWorthBreakdown(
+                  stats.totalWalletBalance.toLocaleString('id-ID'),
+                  stats.totalSavings.toLocaleString('id-ID')
+                )}
+              </p>
+            </div>
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <BarChart3 className="w-5 h-5 text-white" />
+            </div>
+          </div>
+        </Card>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
