@@ -29,6 +29,7 @@ export interface Income {
   date: string
   recurring: boolean
   note: string | null
+  walletId: string | null
   createdAt: string
 }
 
@@ -193,7 +194,7 @@ export const api = {
     list: () => request<Income[]>('/incomes'),
     monthlySummary: () =>
       request<IncomeMonthlySummary>('/incomes/monthly-summary'),
-    create: (data: { amount: number; category: string; date: string; recurring: boolean; note?: string }) =>
+    create: (data: { amount: number; category: string; date: string; recurring: boolean; note?: string; walletId?: string }) =>
       request<Income>('/incomes', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<Income>) =>
       request<Income>(`/incomes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

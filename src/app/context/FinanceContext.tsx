@@ -22,6 +22,7 @@ export interface Income {
   date: string
   recurring: boolean
   note?: string
+  walletId?: string | null
 }
 
 export interface Expense {
@@ -113,6 +114,7 @@ function mapIncome(api: ApiIncome): Income {
     date: api.date.split('T')[0],
     recurring: api.recurring,
     note: api.note || undefined,
+    walletId: api.walletId ?? null,
   }
 }
 
@@ -251,10 +253,15 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
         date: income.date,
         recurring: income.recurring,
         note: income.note,
+        walletId: income.walletId ?? undefined,
       })
       setIncomes((prev) => [mapIncome(created), ...prev])
+      if (income.walletId && userId) {
+        const walletsRes = await api.wallet.list()
+        setWallets(walletsRes.map(mapWallet))
+      }
     },
-    []
+    [userId]
   )
 
   const addExpense = useCallback(
@@ -347,10 +354,15 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
 
   const deleteIncome = useCallback(
     async (id: string) => {
+      const income = incomes.find((i) => i.id === id)
       await api.income.delete(id)
       setIncomes((prev) => prev.filter((item) => item.id !== id))
+      if (income?.walletId && userId) {
+        const walletsRes = await api.wallet.list()
+        setWallets(walletsRes.map(mapWallet))
+      }
     },
-    []
+    [incomes, userId]
   )
 
   const deleteExpense = useCallback(

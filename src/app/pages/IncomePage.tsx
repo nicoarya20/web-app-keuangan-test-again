@@ -13,9 +13,10 @@ import { toast } from 'sonner';
 import { useT } from '../context/LanguageContext';
 
 const INCOME_CATEGORIES = ['Salary', 'Freelance', 'Side Hustle', 'Bonus', 'Investment', 'Other'];
+const NO_WALLET = '__none__';
 
 export const IncomePage: React.FC = () => {
-  const { incomes, addIncome, deleteIncome } = useFinance();
+  const { incomes, wallets, addIncome, deleteIncome } = useFinance();
   const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -24,6 +25,7 @@ export const IncomePage: React.FC = () => {
     date: format(new Date(), 'yyyy-MM-dd'),
     recurring: false,
     note: '',
+    walletId: NO_WALLET,
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -40,6 +42,7 @@ export const IncomePage: React.FC = () => {
       date: formData.date,
       recurring: formData.recurring,
       note: formData.note,
+      walletId: formData.walletId === NO_WALLET ? null : formData.walletId,
     });
 
     setFormData({
@@ -48,6 +51,7 @@ export const IncomePage: React.FC = () => {
       date: format(new Date(), 'yyyy-MM-dd'),
       recurring: false,
       note: '',
+      walletId: NO_WALLET,
     });
     setIsOpen(false);
     toast.success(t.income.toast.added);
@@ -62,6 +66,8 @@ export const IncomePage: React.FC = () => {
   const monthlyRecurring = incomes
     .filter((income) => income.recurring)
     .reduce((sum, income) => sum + income.amount, 0);
+
+  const walletMap = Object.fromEntries(wallets.map((w) => [w.id, w.name]));
 
   return (
     <div className="space-y-6">
@@ -126,6 +132,28 @@ export const IncomePage: React.FC = () => {
                   required
                 />
               </div>
+
+              {wallets.length > 0 && (
+                <div>
+                  <Label htmlFor="walletId">{t.income.addToWallet}</Label>
+                  <Select
+                    value={formData.walletId}
+                    onValueChange={(value) => setFormData({ ...formData, walletId: value })}
+                  >
+                    <SelectTrigger className="rounded-xl">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_WALLET}>{t.income.noWalletAddition}</SelectItem>
+                      {wallets.map((w) => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {w.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
 
               <div className="flex items-center justify-between">
                 <Label htmlFor="recurring">{t.income.recurring}</Label>
@@ -220,6 +248,9 @@ export const IncomePage: React.FC = () => {
                     <p className="text-sm text-gray-500">
                       {format(parseISO(income.date), 'MMM dd, yyyy')}
                     </p>
+                    {income.walletId && walletMap[income.walletId] && (
+                      <p className="text-xs text-green-600 mt-0.5">{walletMap[income.walletId]}</p>
+                    )}
                     {income.note && (
                       <p className="text-sm text-gray-600 mt-1 truncate">{income.note}</p>
                     )}

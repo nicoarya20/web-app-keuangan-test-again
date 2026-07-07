@@ -54,6 +54,8 @@ const en = {
     allIncome: 'All Income',
     noRecords: 'No income records yet. Add your first income!',
     recurringBadge: 'Recurring',
+    addToWallet: 'Add to Wallet (Optional)',
+    noWalletAddition: 'No wallet addition',
     categories: {
       Salary: 'Salary',
       Freelance: 'Freelance',
@@ -275,6 +277,8 @@ const id: Translation = {
     allIncome: 'Semua Pemasukan',
     noRecords: 'Belum ada pemasukan. Tambahkan pemasukan pertama Anda!',
     recurringBadge: 'Berulang',
+    addToWallet: 'Masuk ke Dompet (Opsional)',
+    noWalletAddition: 'Tidak masuk dompet',
     categories: {
       Salary: 'Gaji',
       Freelance: 'Freelance',

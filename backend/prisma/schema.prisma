@@ -105,6 +105,9 @@ model Income {
   recurring Boolean  @default(false)
   note      String?
 
+  walletId  String?
+  wallet    Wallet?  @relation(fields: [walletId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -206,6 +209,7 @@ model Wallet {
 
   transactions    WalletTransaction[]
   expenses        Expense[]
+  incomes         Income[]
 
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
