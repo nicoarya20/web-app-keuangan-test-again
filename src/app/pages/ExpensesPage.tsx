@@ -24,7 +24,7 @@ const EXPENSE_CATEGORIES = [
 ];
 
 export const ExpensesPage: React.FC = () => {
-  const { expenses, addExpense, deleteExpense, categoryBudgets, setCategoryBudget } = useFinance();
+  const { expenses, wallets, addExpense, deleteExpense, categoryBudgets, setCategoryBudget } = useFinance();
   const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [isBudgetOpen, setIsBudgetOpen] = useState(false);
@@ -37,6 +37,7 @@ export const ExpensesPage: React.FC = () => {
     date: format(new Date(), 'yyyy-MM-dd'),
     note: '',
     tags: '',
+    walletId: '',
   });
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -53,6 +54,7 @@ export const ExpensesPage: React.FC = () => {
       date: formData.date,
       note: formData.note,
       tags: formData.tags ? formData.tags.split(',').map((tag) => tag.trim()) : [],
+      walletId: formData.walletId || null,
     });
 
     setFormData({
@@ -61,6 +63,7 @@ export const ExpensesPage: React.FC = () => {
       date: format(new Date(), 'yyyy-MM-dd'),
       note: '',
       tags: '',
+      walletId: '',
     });
     setIsOpen(false);
     toast.success(t.expenses.toast.added);
@@ -233,6 +236,28 @@ export const ExpensesPage: React.FC = () => {
                   />
                 </div>
 
+                {wallets.length > 0 && (
+                  <div>
+                    <Label>{t.expenses.deductFromWallet}</Label>
+                    <Select
+                      value={formData.walletId}
+                      onValueChange={(value) => setFormData({ ...formData, walletId: value === 'none' ? '' : value })}
+                    >
+                      <SelectTrigger className="rounded-xl">
+                        <SelectValue placeholder={t.expenses.noWalletDeduction} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">{t.expenses.noWalletDeduction}</SelectItem>
+                        {wallets.map((w) => (
+                          <SelectItem key={w.id} value={w.id}>
+                            {w.name} — Rp {w.currentBalance.toLocaleString('id-ID')}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
                 <Button type="submit" className="w-full bg-red-600 hover:bg-red-700 rounded-xl">
                   {t.expenses.addExpense}
                 </Button>
@@ -328,6 +353,10 @@ export const ExpensesPage: React.FC = () => {
                     </p>
                     <p className="text-sm text-gray-500">
                       {format(parseISO(expense.date), 'MMM dd, yyyy')}
+                      {expense.walletId && (() => {
+                        const w = wallets.find((w) => w.id === expense.walletId);
+                        return w ? <span className="ml-2 text-xs text-indigo-500">· {w.name}</span> : null;
+                      })()}
                     </p>
                     {expense.note && (
                       <p className="text-sm text-gray-600 mt-1 truncate">{expense.note}</p>

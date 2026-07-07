@@ -40,6 +40,7 @@ export interface Expense {
   date: string
   note: string | null
   tags: string[]
+  walletId: string | null
   createdAt: string
 }
 
@@ -205,7 +206,7 @@ export const api = {
     list: () => request<Expense[]>('/expenses'),
     monthlySummary: () =>
       request<ExpenseMonthlySummary>('/expenses/monthly-summary'),
-    create: (data: { amount: number; category: string; date: string; note?: string; tags?: string[] }) =>
+    create: (data: { amount: number; category: string; date: string; note?: string; tags?: string[]; walletId?: string }) =>
       request<Expense>('/expenses', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<Expense>) =>
       request<Expense>(`/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),

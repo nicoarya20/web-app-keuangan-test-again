@@ -88,6 +88,8 @@ const en = {
     budgetOverview: 'Budget Overview',
     overBudget: (amount: string) => `Over budget by Rp ${amount}`,
     allExpenses: 'All Expenses',
+    deductFromWallet: 'Deduct from Wallet (Optional)',
+    noWalletDeduction: 'No wallet deduction',
     noRecords: 'No expense records yet. Track your first expense!',
     categories: {
       'Food & Dining': 'Food & Dining',
@@ -307,6 +309,8 @@ const id: Translation = {
     budgetOverview: 'Ringkasan Budget',
     overBudget: (amount: string) => `Melebihi budget Rp ${amount}`,
     allExpenses: 'Semua Pengeluaran',
+    deductFromWallet: 'Potong dari Dompet (Opsional)',
+    noWalletDeduction: 'Tidak potong dompet',
     noRecords: 'Belum ada pengeluaran. Catat pengeluaran pertama Anda!',
     categories: {
       'Food & Dining': 'Makanan & Minuman',

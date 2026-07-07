@@ -127,6 +127,9 @@ model Expense {
   note      String?
   tags      String[]
 
+  walletId  String?
+  wallet    Wallet?  @relation(fields: [walletId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -202,6 +205,7 @@ model Wallet {
   currentBalance  Int                @default(0)
 
   transactions    WalletTransaction[]
+  expenses        Expense[]
 
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
@@ -241,6 +245,8 @@ model WalletTransaction {
 enum WalletTxType {
   TOPUP
   EXPENSE
+  TRANSFER_OUT
+  TRANSFER_IN
 }
 
 // ============================================================

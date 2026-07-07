@@ -31,6 +31,7 @@ export interface Expense {
   date: string
   note?: string
   tags?: string[]
+  walletId?: string | null
 }
 
 export interface WishlistItem {
@@ -123,6 +124,7 @@ function mapExpense(api: ApiExpense): Expense {
     date: api.date.split('T')[0],
     note: api.note || undefined,
     tags: api.tags || [],
+    walletId: api.walletId ?? null,
   }
 }
 
@@ -263,10 +265,15 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
         date: expense.date,
         note: expense.note,
         tags: expense.tags,
+        walletId: expense.walletId ?? undefined,
       })
       setExpenses((prev) => [mapExpense(created), ...prev])
+      if (expense.walletId && userId) {
+        const walletsRes = await api.wallet.list(userId)
+        setWallets(walletsRes.map(mapWallet))
+      }
     },
-    []
+    [userId]
   )
 
   const addWishlistItem = useCallback(
@@ -348,10 +355,15 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
 
   const deleteExpense = useCallback(
     async (id: string) => {
+      const expense = expenses.find((e) => e.id === id)
       await api.expense.delete(id)
       setExpenses((prev) => prev.filter((item) => item.id !== id))
+      if (expense?.walletId && userId) {
+        const walletsRes = await api.wallet.list(userId)
+        setWallets(walletsRes.map(mapWallet))
+      }
     },
-    []
+    [expenses, userId]
   )
 
   const deleteWishlistItem = useCallback(
