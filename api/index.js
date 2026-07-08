@@ -52960,8 +52960,9 @@ init_json();
 init_db();
 var auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
-  baseURL: (process.env.BETTER_AUTH_URL || "https://web-app-keuangan-test-again.vercel.app") + "/api/auth",
+  baseURL: (process.env.BETTER_AUTH_URL || "https://web-app-keuanganku.vercel.app") + "/api/auth",
   trustedOrigins: [
+    "https://web-app-keuanganku.vercel.app",
     "https://web-app-keuangan-test-again.vercel.app",
     "http://localhost:5173",
     "http://localhost:5174",
@@ -53169,6 +53170,42 @@ router4.post("/", async (c) => {
   const user = c.get("user");
   const id = randomUUID2();
   const date4 = body.date.includes("T") ? new Date(body.date) : /* @__PURE__ */ new Date(body.date + "T00:00:00.000Z");
+  if (body.walletId) {
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows: [wallet] } = await client.query(
+        `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+        [body.walletId, user.id]
+      );
+      if (!wallet) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "Wallet not found" }, 404);
+      }
+      const { rows: rows2 } = await client.query(
+        `INSERT INTO incomes (id, "userId", amount, category, date, recurring, note, "walletId", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+         RETURNING *`,
+        [id, user.id, body.amount, body.category, date4, body.recurring ?? false, body.note ?? null, body.walletId]
+      );
+      await client.query(
+        `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "referenceId", "createdAt", "updatedAt")
+         VALUES ($1, $2, 'TOPUP', $3, $4, $5, $6, NOW(), NOW())`,
+        [randomUUID2(), body.walletId, body.amount, body.note ?? null, date4, id]
+      );
+      await client.query(
+        `UPDATE wallets SET "currentBalance" = "currentBalance" + $1, "updatedAt" = NOW() WHERE id = $2`,
+        [body.amount, body.walletId]
+      );
+      await client.query("COMMIT");
+      return c.json(rows2[0], 201);
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
   const { rows } = await db.query(
     `INSERT INTO incomes (id, "userId", amount, category, date, recurring, note, "createdAt", "updatedAt")
      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
@@ -53216,8 +53253,31 @@ router4.patch("/:id", async (c) => {
 });
 router4.delete("/:id", async (c) => {
   const { id } = c.req.param();
-  const { rowCount } = await db.query(`DELETE FROM incomes WHERE id = $1`, [id]);
-  if (!rowCount) return c.json({ error: "Record not found" }, 404);
+  const { rows: [income] } = await db.query(`SELECT * FROM incomes WHERE id = $1`, [id]);
+  if (!income) return c.json({ error: "Record not found" }, 404);
+  if (income.walletId) {
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`DELETE FROM incomes WHERE id = $1`, [id]);
+      await client.query(
+        `DELETE FROM wallet_transactions WHERE "referenceId" = $1`,
+        [id]
+      );
+      await client.query(
+        `UPDATE wallets SET "currentBalance" = "currentBalance" - $1, "updatedAt" = NOW() WHERE id = $2`,
+        [income.amount, income.walletId]
+      );
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  } else {
+    await db.query(`DELETE FROM incomes WHERE id = $1`, [id]);
+  }
   return c.json({ success: true });
 });
 var income_default = router4;
@@ -53270,6 +53330,46 @@ router5.post("/", async (c) => {
   const user = c.get("user");
   const id = randomUUID3();
   const date4 = body.date.includes("T") ? new Date(body.date) : /* @__PURE__ */ new Date(body.date + "T00:00:00.000Z");
+  if (body.walletId) {
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows: [wallet] } = await client.query(
+        `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+        [body.walletId, user.id]
+      );
+      if (!wallet) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "Wallet not found" }, 404);
+      }
+      if (Number(wallet.currentBalance) < body.amount) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "Insufficient balance" }, 400);
+      }
+      const { rows: rows2 } = await client.query(
+        `INSERT INTO expenses (id, "userId", amount, category, date, note, tags, "walletId", "createdAt", "updatedAt")
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+         RETURNING *`,
+        [id, user.id, body.amount, body.category, date4, body.note ?? null, body.tags ?? [], body.walletId]
+      );
+      await client.query(
+        `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "referenceId", "createdAt", "updatedAt")
+         VALUES ($1, $2, 'EXPENSE', $3, $4, $5, $6, NOW(), NOW())`,
+        [randomUUID3(), body.walletId, body.amount, body.note ?? null, date4, id]
+      );
+      await client.query(
+        `UPDATE wallets SET "currentBalance" = "currentBalance" - $1, "updatedAt" = NOW() WHERE id = $2`,
+        [body.amount, body.walletId]
+      );
+      await client.query("COMMIT");
+      return c.json(rows2[0], 201);
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
   const { rows } = await db.query(
     `INSERT INTO expenses (id, "userId", amount, category, date, note, tags, "createdAt", "updatedAt")
      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
@@ -53317,8 +53417,31 @@ router5.patch("/:id", async (c) => {
 });
 router5.delete("/:id", async (c) => {
   const { id } = c.req.param();
-  const { rowCount } = await db.query(`DELETE FROM expenses WHERE id = $1`, [id]);
-  if (!rowCount) return c.json({ error: "Record not found" }, 404);
+  const { rows: [expense] } = await db.query(`SELECT * FROM expenses WHERE id = $1`, [id]);
+  if (!expense) return c.json({ error: "Record not found" }, 404);
+  if (expense.walletId) {
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query(`DELETE FROM expenses WHERE id = $1`, [id]);
+      await client.query(
+        `DELETE FROM wallet_transactions WHERE "referenceId" = $1`,
+        [id]
+      );
+      await client.query(
+        `UPDATE wallets SET "currentBalance" = "currentBalance" + $1, "updatedAt" = NOW() WHERE id = $2`,
+        [expense.amount, expense.walletId]
+      );
+      await client.query("COMMIT");
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  } else {
+    await db.query(`DELETE FROM expenses WHERE id = $1`, [id]);
+  }
   return c.json({ success: true });
 });
 var expense_default = router5;
