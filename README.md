@@ -1,214 +1,214 @@
-# 💰 Web App Keuangan — Personal Finance Manager
+# 💰 Web App Keuangan — Aplikasi Pencatat Keuangan Pribadi
 
-A clean, full-stack personal finance web app built with React + Hono + Supabase. Track your income, expenses, wallets, savings, and wishlist — all in one place, with support for both Indonesian and English.
+Aplikasi keuangan pribadi full-stack yang dibangun dengan React + Hono + Supabase. Catat pemasukan, pengeluaran, dompet, tabungan, dan wishlist — semua dalam satu aplikasi, dengan dukungan Bahasa Indonesia dan Inggris.
 
-**Live Demo:** [web-app-keuanganku.vercel.app](https://web-app-keuanganku.vercel.app)
+**Demo Langsung:** [web-app-keuanganku.vercel.app](https://web-app-keuanganku.vercel.app)
 
 ---
 
-## Features
+## Fitur
 
-- **Dashboard** — net worth overview, cashflow chart, expense breakdown by category, recent transactions
-- **Income** — track income with categories, recurring flag, and wallet integration
-- **Expenses** — track spending with category budgets and budget warnings
-- **Wallet** — manage multiple wallets (cash, e-wallet, bank), top-up, expense, and transfer between wallets
-- **Savings & Investments** — log savings/investment entries with goal names and growth chart
-- **Wishlist** — set target prices, track progress toward each item
-- **Authentication** — email/password login via Better Auth
-- **Bilingual** — Indonesian & English (toggle in topbar)
-- **Balance Privacy** — show/hide all monetary values with one click (eye icon)
-- **What's New Modal** — changelog popup after login when new features are released
-- **Dark/Light theme ready** — OKLCH design tokens in CSS
+- **Dashboard** — ringkasan kekayaan bersih, grafik cashflow, rincian pengeluaran per kategori, transaksi terbaru
+- **Pemasukan** — catat pemasukan dengan kategori, tandai berulang, dan integrasi ke dompet
+- **Pengeluaran** — catat pengeluaran dengan budget per kategori dan peringatan jika melebihi budget
+- **Dompet** — kelola beberapa dompet (tunai, e-wallet, bank), isi saldo, catat pengeluaran, dan transfer antar dompet
+- **Tabungan & Investasi** — catat tabungan/investasi dengan nama tujuan dan grafik pertumbuhan
+- **Wishlist** — tentukan target harga dan pantau progress menabung untuk setiap item
+- **Autentikasi** — login email/password via Better Auth
+- **Dwibahasa** — Indonesia & Inggris (toggle di topbar)
+- **Privasi Saldo** — sembunyikan/tampilkan semua nominal uang dengan satu klik (icon mata)
+- **Modal Update Fitur** — popup changelog muncul otomatis setelah login saat ada fitur baru
+- **Siap Dark/Light theme** — design token OKLCH di CSS
 
 ---
 
 ## Tech Stack
 
-| Layer | Tech |
-|-------|------|
+| Layer | Teknologi |
+|-------|-----------|
 | Frontend | React 19, Vite, TypeScript |
 | UI | shadcn/ui (Radix UI), Tailwind CSS v4 |
 | Backend | Hono (Node.js) |
 | Database | PostgreSQL via Supabase |
-| ORM / Query | Prisma (schema only) + raw SQL via `node-postgres` |
+| ORM / Query | Prisma (schema) + raw SQL via `node-postgres` |
 | Auth | Better Auth |
 | Deployment | Vercel (frontend + serverless API) |
 
 ---
 
-## Project Structure
+## Struktur Project
 
 ```
-├── src/                  # React frontend (Vite)
+├── src/                  # Frontend React (Vite)
 │   ├── app/
-│   │   ├── components/   # Shared UI components
-│   │   ├── context/      # React contexts (Finance, Language, BalanceVisibility)
+│   │   ├── components/   # Komponen UI bersama
+│   │   ├── context/      # React context (Finance, Language, BalanceVisibility)
 │   │   ├── hooks/        # Custom hooks
-│   │   ├── pages/        # Page components
+│   │   ├── pages/        # Halaman aplikasi
 │   │   ├── layouts/      # RootLayout
-│   │   └── constants/    # Changelog, etc.
+│   │   └── constants/    # Changelog, dll
 │   ├── lib/              # API client, auth client
-│   └── styles/           # Global CSS, theme tokens
-├── backend/              # Hono API server (local dev)
+│   └── styles/           # CSS global, design token
+├── backend/              # Hono API server (dev lokal)
 │   └── src/
-│       ├── routes/       # Route handlers
+│       ├── routes/       # Route handler
 │       └── lib/          # DB client, auth, prisma
-├── api/                  # Vercel serverless entry point
+├── api/                  # Entry point Vercel serverless
 │   └── index.ts
-└── backend/prisma/       # Prisma schema (source of truth)
+└── backend/prisma/       # Prisma schema (sumber kebenaran)
 ```
 
 ---
 
-## Getting Started
+## Cara Memulai
 
-### Prerequisites
+### Prasyarat
 
 - Node.js 18+
-- A [Supabase](https://supabase.com) project (free tier works)
+- Project [Supabase](https://supabase.com) (tier gratis sudah cukup)
 
 ### 1. Clone & Install
 
 ```bash
-git clone <your-repo-url>
+git clone <url-repo-kamu>
 cd web-app-keuangan
 
-# Install frontend dependencies
+# Install dependensi frontend
 npm install
 
-# Install backend dependencies
+# Install dependensi backend
 cd backend && npm install && cd ..
 ```
 
 ### 2. Environment Variables
 
-Create a `.env` file in the root directory:
+Buat file `.env` di folder root (lihat `.env.example` sebagai panduan):
 
 ```env
-# Supabase — from your Supabase project dashboard > Settings > Database
-# Use port 6543 (connection pooler) for DATABASE_URL
+# Supabase — dari Supabase Dashboard > Settings > Database
+# Gunakan port 6543 (connection pooler) untuk DATABASE_URL
 DATABASE_URL=postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres?pgbouncer=true
 
-# Use port 5432 (direct connection) for migrations
+# Gunakan port 5432 (koneksi langsung) untuk migrasi
 MIGRATE_URL=postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres
 
-# Better Auth — generate a random secret (e.g. openssl rand -hex 32)
-BETTER_AUTH_SECRET=your_random_secret_here
+# Better Auth — buat secret acak (contoh: openssl rand -hex 32)
+BETTER_AUTH_SECRET=secret_acak_kamu
 
-# URL where your app is running
+# URL tempat app berjalan
 BETTER_AUTH_URL=http://localhost:5173   # dev
-# BETTER_AUTH_URL=https://your-app.vercel.app  # production
+# BETTER_AUTH_URL=https://app-kamu.vercel.app  # production
 ```
 
-> **Where to find Supabase credentials:** Go to your Supabase project → Settings → Database → Connection string. Copy the "Transaction" URI for `DATABASE_URL` and "Session" URI for `MIGRATE_URL`.
+> **Cara dapat kredensial Supabase:** Buka project Supabase → Settings → Database → Connection string. Salin URI "Transaction" untuk `DATABASE_URL` dan URI "Session" untuk `MIGRATE_URL`.
 
-### 3. Push Database Schema
+### 3. Push Skema Database
 
 ```bash
 npm run backend:db:push
 ```
 
-This will create all the required tables in your Supabase database.
+Perintah ini akan membuat semua tabel yang dibutuhkan di database Supabase kamu.
 
-### 4. Run in Development
+### 4. Jalankan di Mode Development
 
 ```bash
 npm run dev
 ```
 
-This starts:
-- Frontend at `http://localhost:5173`
-- Backend API at `http://localhost:3000`
+Ini akan menjalankan:
+- Frontend di `http://localhost:5173`
+- Backend API di `http://localhost:3000`
 
-All `/api/*` requests from the frontend are automatically proxied to the backend during development.
+Semua request `/api/*` dari frontend otomatis di-proxy ke backend saat development.
 
 ---
 
-## Deployment (Vercel)
+## Deployment ke Vercel
 
-### 1. Push to GitHub
+### 1. Push ke GitHub
 
-Push your code to a GitHub repository.
+Push kode kamu ke repository GitHub.
 
-### 2. Import to Vercel
+### 2. Import ke Vercel
 
-Go to [vercel.com](https://vercel.com) → New Project → Import your repo.
+Buka [vercel.com](https://vercel.com) → New Project → Import repo kamu.
 
-### 3. Set Environment Variables
+### 3. Atur Environment Variables
 
-In Vercel project settings → Environment Variables, add all variables from your `.env` file. For `BETTER_AUTH_URL`, use your Vercel deployment URL (e.g. `https://your-app.vercel.app`).
+Di Vercel project settings → Environment Variables, tambahkan semua variabel dari file `.env` kamu. Untuk `BETTER_AUTH_URL`, gunakan URL Vercel deployment kamu (contoh: `https://app-kamu.vercel.app`).
 
 ### 4. Deploy
 
-Vercel will automatically build and deploy. The `vercel.json` config handles routing for both the frontend SPA and the `/api/*` serverless functions.
+Vercel akan otomatis build dan deploy. File `vercel.json` sudah mengatur routing untuk frontend SPA dan serverless function `/api/*`.
 
 ---
 
-## Database Schema
+## Skema Database
 
-8 models managed via Prisma:
+8 model yang dikelola via Prisma:
 
-| Model | Description |
-|-------|-------------|
-| `User` | Auth user |
-| `Session` / `Account` | Better Auth sessions |
-| `Income` | Income records |
-| `Expense` | Expense records |
-| `Wallet` | Wallet accounts |
-| `WalletTransaction` | Wallet transaction history |
-| `Saving` | Savings & investment entries |
-| `Wishlist` | Wishlist items with progress tracking |
+| Model | Keterangan |
+|-------|------------|
+| `User` | Data pengguna |
+| `Session` / `Account` | Sesi Better Auth |
+| `Income` | Data pemasukan |
+| `Expense` | Data pengeluaran |
+| `Wallet` | Akun dompet |
+| `WalletTransaction` | Riwayat transaksi dompet |
+| `Saving` | Data tabungan & investasi |
+| `Wishlist` | Item wishlist dengan tracking progress |
 
-> After any schema change, run `npm run backend:db:generate` then `npm run backend:db:push`.
+> Setelah mengubah skema, jalankan `npm run backend:db:generate` lalu `npm run backend:db:push`.
 
 ---
 
-## Available Scripts
+## Perintah yang Tersedia
 
 ```bash
 # Development
-npm run dev                   # Start frontend + backend concurrently
-npm run backend:dev           # Backend only (with hot reload)
+npm run dev                   # Jalankan frontend + backend sekaligus
+npm run backend:dev           # Backend saja (dengan hot reload)
 
 # Build
-npm run build                 # Vite production build
+npm run build                 # Build produksi Vite
 
 # Database
-npm run backend:db:push       # Push schema changes to Supabase
-npm run backend:db:generate   # Regenerate Prisma client
-npm run backend:db:studio     # Open Prisma Studio GUI
-npm run backend:db:migrate    # Run Prisma migrations
+npm run backend:db:push       # Push perubahan skema ke Supabase
+npm run backend:db:generate   # Regenerasi Prisma client
+npm run backend:db:studio     # Buka Prisma Studio GUI
+npm run backend:db:migrate    # Jalankan migrasi Prisma
 ```
 
 ---
 
-## Customization
+## Kustomisasi
 
-### Adding a New Changelog Entry
+### Menambah Entri Changelog Baru
 
-When you release new features, update `src/app/constants/changelog.ts`:
+Saat kamu merilis fitur baru, update `src/app/constants/changelog.ts`:
 
 ```ts
-export const APP_VERSION = '1.3.0';  // bump this
+export const APP_VERSION = '1.3.0';  // naikkan versi ini
 
 export const CHANGELOG = [
   {
     version: '1.3.0',
-    date: '1 Aug 2026',
-    features: ['Your new feature here'],
+    date: '1 Agu 2026',
+    features: ['Fitur baru kamu di sini'],
   },
-  // ... previous entries
+  // ... entri sebelumnya
 ];
 ```
 
-The "What's New" modal will automatically appear for all users on their next login.
+Modal "Yang Baru" akan otomatis muncul ke semua pengguna saat login berikutnya.
 
-### Changing the App Language Default
+### Mengubah Bahasa Default Aplikasi
 
-Edit `src/app/context/LanguageContext.tsx` — change the initial `lang` state from `'id'` to `'en'`.
+Edit `src/app/context/LanguageContext.tsx` — ubah nilai awal state `lang` dari `'id'` ke `'en'` (atau sebaliknya).
 
 ---
 
-## License
+## Lisensi
 
-This source code is sold for **personal and commercial use**. You may use, modify, and deploy this code for your own projects or your clients' projects. You may **not** resell or redistribute this source code as-is.
+Source code ini dijual untuk **penggunaan personal dan komersial**. Kamu boleh menggunakan, memodifikasi, dan men-deploy kode ini untuk project pribadi maupun project klien. Kamu **tidak boleh** menjual kembali atau mendistribusikan ulang source code ini apa adanya.
