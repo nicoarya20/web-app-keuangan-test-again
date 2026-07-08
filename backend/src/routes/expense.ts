@@ -80,6 +80,12 @@ router.post('/', async (c) => {
       )
 
       await client.query(
+        `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "referenceId", "createdAt", "updatedAt")
+         VALUES ($1, $2, 'EXPENSE', $3, $4, $5, $6, NOW(), NOW())`,
+        [randomUUID(), body.walletId, body.amount, body.note ?? null, date, id]
+      )
+
+      await client.query(
         `UPDATE wallets SET "currentBalance" = "currentBalance" - $1, "updatedAt" = NOW() WHERE id = $2`,
         [body.amount, body.walletId]
       )
@@ -143,6 +149,10 @@ router.delete('/:id', async (c) => {
     try {
       await client.query('BEGIN')
       await client.query(`DELETE FROM expenses WHERE id = $1`, [id])
+      await client.query(
+        `DELETE FROM wallet_transactions WHERE "referenceId" = $1`,
+        [id]
+      )
       await client.query(
         `UPDATE wallets SET "currentBalance" = "currentBalance" + $1, "updatedAt" = NOW() WHERE id = $2`,
         [expense.amount, expense.walletId]
