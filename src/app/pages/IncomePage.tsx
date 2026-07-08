@@ -11,6 +11,7 @@ import { Plus, TrendingUp, Trash2, CalendarIcon } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 import { useT } from '../context/LanguageContext';
+import { AmountText } from '../components/AmountText';
 
 const INCOME_CATEGORIES = ['Salary', 'Freelance', 'Side Hustle', 'Bonus', 'Investment', 'Other'];
 const NO_WALLET = '__none__';
@@ -204,9 +205,10 @@ export const IncomePage: React.FC = () => {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-gray-600">{t.income.totalIncome}</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-                Rp {totalIncome.toLocaleString('id-ID')}
-              </p>
+              <AmountText
+                amount={totalIncome}
+                className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words block"
+              />
               <p className="text-xs text-gray-500 mt-2">{t.income.allTime}</p>
             </div>
             <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
@@ -219,9 +221,10 @@ export const IncomePage: React.FC = () => {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-gray-600">{t.income.monthlyRecurring}</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-                Rp {monthlyRecurring.toLocaleString('id-ID')}
-              </p>
+              <AmountText
+                amount={monthlyRecurring}
+                className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words block"
+              />
               <p className="text-xs text-gray-500 mt-2">{t.income.expectedMonthly}</p>
             </div>
             <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
@@ -270,9 +273,11 @@ export const IncomePage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-3">
-                  <p className="text-lg sm:text-xl font-bold text-green-600 whitespace-nowrap">
-                    +Rp {income.amount.toLocaleString('id-ID')}
-                  </p>
+                  <AmountText
+                    amount={income.amount}
+                    prefix="+"
+                    className="text-lg sm:text-xl font-bold text-green-600 whitespace-nowrap"
+                  />
                   <button
                     onClick={() => handleDelete(income.id)}
                     className="p-2.5 hover:bg-red-50 rounded-lg transition-colors"

@@ -11,6 +11,7 @@ import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useT } from '../context/LanguageContext';
+import { AmountText } from '../components/AmountText';
 
 export const SavingsPage: React.FC = () => {
   const { savings, addSaving, deleteSaving } = useFinance();
@@ -175,9 +176,10 @@ export const SavingsPage: React.FC = () => {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-gray-600">{t.savings.totalAmount}</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-                Rp {totalAmount.toLocaleString('id-ID')}
-              </p>
+              <AmountText
+                amount={totalAmount}
+                className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words block"
+              />
               <p className="text-xs text-gray-500 mt-2">{t.savings.allSavingsSubtitle}</p>
             </div>
             <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center">
@@ -190,9 +192,10 @@ export const SavingsPage: React.FC = () => {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-gray-600">{t.savings.savings}</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-                Rp {totalSavings.toLocaleString('id-ID')}
-              </p>
+              <AmountText
+                amount={totalSavings}
+                className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words block"
+              />
               <p className="text-xs text-gray-500 mt-2">{t.savings.safeDeposits}</p>
             </div>
             <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center">
@@ -205,9 +208,10 @@ export const SavingsPage: React.FC = () => {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-gray-600">{t.savings.investments}</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-                Rp {totalInvestments.toLocaleString('id-ID')}
-              </p>
+              <AmountText
+                amount={totalInvestments}
+                className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words block"
+              />
               <p className="text-xs text-gray-500 mt-2">{t.savings.growthAssets}</p>
             </div>
             <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
@@ -244,9 +248,10 @@ export const SavingsPage: React.FC = () => {
             {Object.entries(goalBreakdown).map(([goal, amount]) => (
               <div key={goal} className="p-3 sm:p-4 bg-purple-50 rounded-xl border border-purple-100">
                 <p className="text-xs sm:text-sm text-purple-700 font-medium truncate">{goal}</p>
-                <p className="text-lg sm:text-xl font-bold text-purple-900 mt-1 break-words">
-                  Rp {amount.toLocaleString('id-ID')}
-                </p>
+                <AmountText
+                  amount={amount}
+                  className="text-lg sm:text-xl font-bold text-purple-900 mt-1 break-words block"
+                />
               </div>
             ))}
           </div>
@@ -296,9 +301,11 @@ export const SavingsPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-3">
-                  <p className="text-lg sm:text-xl font-bold text-purple-600 whitespace-nowrap">
-                    +Rp {saving.amount.toLocaleString('id-ID')}
-                  </p>
+                  <AmountText
+                    amount={saving.amount}
+                    prefix="+"
+                    className="text-lg sm:text-xl font-bold text-purple-600 whitespace-nowrap"
+                  />
                   <button
                     onClick={() => handleDelete(saving.id)}
                     className="p-2.5 hover:bg-red-50 rounded-lg transition-colors"

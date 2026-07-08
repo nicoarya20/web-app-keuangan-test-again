@@ -11,6 +11,8 @@ import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 import { toast } from 'sonner';
 import { Progress } from '../components/ui/progress';
 import { useT } from '../context/LanguageContext';
+import { AmountText } from '../components/AmountText';
+import { useBalanceVisibility } from '../context/BalanceVisibilityContext';
 
 const EXPENSE_CATEGORIES = [
   'Food & Dining',
@@ -26,6 +28,7 @@ const EXPENSE_CATEGORIES = [
 export const ExpensesPage: React.FC = () => {
   const { expenses, wallets, addExpense, deleteExpense, categoryBudgets, setCategoryBudget } = useFinance();
   const t = useT();
+  const { formatAmount } = useBalanceVisibility();
   const [isOpen, setIsOpen] = useState(false);
   const [isBudgetOpen, setIsBudgetOpen] = useState(false);
   const [budgetCategory, setBudgetCategory] = useState('Food & Dining');
@@ -285,9 +288,10 @@ export const ExpensesPage: React.FC = () => {
         <div className="flex items-start justify-between">
           <div>
             <p className="text-sm text-gray-600">{t.expenses.totalExpenses}</p>
-            <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-              Rp {totalExpense.toLocaleString('id-ID')}
-            </p>
+            <AmountText
+              amount={totalExpense}
+              className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words block"
+            />
             <p className="text-xs text-gray-500 mt-2">
               {t.expenses.transactions(monthlyExpenses.length)}
             </p>
@@ -318,7 +322,7 @@ export const ExpensesPage: React.FC = () => {
                       {t.expenses.categories[category] ?? category}
                     </span>
                     <span className="text-sm text-gray-500 whitespace-nowrap">
-                      Rp {spent.toLocaleString('id-ID')} / Rp {budget.toLocaleString('id-ID')}
+                      Rp {formatAmount(spent)} / Rp {formatAmount(budget)}
                     </span>
                   </div>
                   <Progress
@@ -334,7 +338,7 @@ export const ExpensesPage: React.FC = () => {
                   {isOverBudget && (
                     <div className="flex items-center gap-1 mt-1 text-xs text-red-600">
                       <AlertCircle className="w-3 h-3" />
-                      <span>{t.expenses.overBudget((spent - budget).toLocaleString('id-ID'))}</span>
+                      <span>{t.expenses.overBudget(formatAmount(spent - budget))}</span>
                     </div>
                   )}
                 </div>
@@ -389,9 +393,11 @@ export const ExpensesPage: React.FC = () => {
                   </div>
                 </div>
                 <div className="flex items-center justify-between sm:justify-end gap-3">
-                  <p className="text-lg sm:text-xl font-bold text-red-600 whitespace-nowrap">
-                    -Rp {expense.amount.toLocaleString('id-ID')}
-                  </p>
+                  <AmountText
+                    amount={expense.amount}
+                    prefix="-"
+                    className="text-lg sm:text-xl font-bold text-red-600 whitespace-nowrap"
+                  />
                   <button
                     onClick={() => handleDelete(expense.id)}
                     className="p-2.5 hover:bg-red-50 rounded-lg transition-colors"

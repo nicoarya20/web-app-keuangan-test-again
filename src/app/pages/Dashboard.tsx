@@ -17,10 +17,13 @@ import { PieChart, Pie, Cell, ResponsiveContainer, LineChart, Line, XAxis, YAxis
 import { format, parseISO } from 'date-fns';
 import { PageTransition } from '../components/PageTransition';
 import { useT } from '../context/LanguageContext';
+import { AmountText } from '../components/AmountText';
+import { useBalanceVisibility } from '../context/BalanceVisibilityContext';
 
 export const Dashboard: React.FC = () => {
   const { categoryBudgets, userId } = useFinance();
   const t = useT();
+  const { formatAmount } = useBalanceVisibility();
   const [data, setData] = useState<DashboardData | null>(null);
   const [cashflow, setCashflow] = useState<CashflowDay[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,13 +107,14 @@ export const Dashboard: React.FC = () => {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-indigo-100">{t.dashboard.totalNetWorth}</p>
-              <p className="text-3xl font-bold mt-1">
-                Rp {(stats.totalWalletBalance + stats.totalSavings).toLocaleString('id-ID')}
-              </p>
+              <AmountText
+                amount={stats.totalWalletBalance + stats.totalSavings}
+                className="text-3xl font-bold mt-1 block"
+              />
               <p className="text-xs text-indigo-200 mt-2">
                 {t.dashboard.netWorthBreakdown(
-                  stats.totalWalletBalance.toLocaleString('id-ID'),
-                  stats.totalSavings.toLocaleString('id-ID')
+                  formatAmount(stats.totalWalletBalance),
+                  formatAmount(stats.totalSavings)
                 )}
               </p>
             </div>
@@ -126,9 +130,10 @@ export const Dashboard: React.FC = () => {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-gray-600">{t.dashboard.totalBalance}</p>
-                <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-                  Rp {stats.totalWalletBalance.toLocaleString('id-ID')}
-                </p>
+                <AmountText
+                  amount={stats.totalWalletBalance}
+                  className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words block"
+                />
                 <p className="text-xs text-gray-500 mt-2">
                   {t.dashboard.activeWallets(stats.activeWallets)}
                 </p>
@@ -143,9 +148,10 @@ export const Dashboard: React.FC = () => {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-gray-600">{t.dashboard.totalIncome}</p>
-                <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-                  Rp {stats.totalIncome.toLocaleString('id-ID')}
-                </p>
+                <AmountText
+                  amount={stats.totalIncome}
+                  className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words block"
+                />
                 <div className="flex items-center gap-1 mt-2">
                   <ArrowUpRight className="w-3 h-3 text-green-600" />
                   <span className="text-xs text-green-600">+12.5%</span>
@@ -161,9 +167,10 @@ export const Dashboard: React.FC = () => {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-gray-600">{t.dashboard.totalExpenses}</p>
-                <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-                  Rp {stats.totalExpense.toLocaleString('id-ID')}
-                </p>
+                <AmountText
+                  amount={stats.totalExpense}
+                  className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words block"
+                />
                 <div className="flex items-center gap-1 mt-2">
                   <ArrowDownRight className="w-3 h-3 text-red-600" />
                   <span className="text-xs text-red-600">+8.2%</span>
@@ -201,7 +208,7 @@ export const Dashboard: React.FC = () => {
                     <li className="break-words">
                       • {t.dashboard.highestSpending(
                         highestCategory.category,
-                        highestCategory.total.toLocaleString('id-ID')
+                        formatAmount(highestCategory.total)
                       )}
                     </li>
                   )}
@@ -300,13 +307,13 @@ export const Dashboard: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  <p
+                  <AmountText
+                    amount={transaction.amount}
+                    prefix={isIncome ? '+' : '-'}
                     className={`font-semibold text-sm sm:text-base ${
                       isIncome ? 'text-green-600' : 'text-red-600'
                     } whitespace-nowrap`}
-                  >
-                    {isIncome ? '+' : '-'}Rp {transaction.amount.toLocaleString('id-ID')}
-                  </p>
+                  />
                 </div>
               );
             })}

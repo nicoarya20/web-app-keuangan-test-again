@@ -11,6 +11,8 @@ import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 import { PageTransition } from '../components/PageTransition';
 import { useT } from '../context/LanguageContext';
+import { AmountText } from '../components/AmountText';
+import { useBalanceVisibility } from '../context/BalanceVisibilityContext';
 
 const WALLET_TYPES = ['cash', 'ewallet', 'bank'] as const;
 const WALLET_ICONS: Record<string, string> = { cash: '💰', ewallet: '📱', bank: '🏦' };
@@ -23,6 +25,7 @@ const WALLET_COLORS: Record<string, string> = {
 export const WalletPage: React.FC = () => {
   const { wallets, addWallet, deleteWallet, addWalletTransaction, deleteWalletTransaction, transferBetweenWallets } = useFinance();
   const t = useT();
+  const { formatAmount } = useBalanceVisibility();
   const [isWalletOpen, setIsWalletOpen] = useState(false);
   const [isTxOpen, setIsTxOpen] = useState(false);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
@@ -219,9 +222,10 @@ export const WalletPage: React.FC = () => {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-indigo-200">{t.wallet.totalBalance}</p>
-              <p className="text-2xl sm:text-3xl font-bold mt-2 break-words">
-                Rp {totalBalance.toLocaleString('id-ID')}
-              </p>
+              <AmountText
+                amount={totalBalance}
+                className="text-2xl sm:text-3xl font-bold mt-2 break-words block"
+              />
               <p className="text-xs text-indigo-300 mt-2">
                 {t.wallet.activeWallets(wallets.length)}
               </p>
@@ -284,20 +288,21 @@ export const WalletPage: React.FC = () => {
                         {/* Balance */}
                         <div>
                           <p className="text-xs text-gray-600">{t.wallet.currentBalance}</p>
-                          <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-                            Rp {wallet.currentBalance.toLocaleString('id-ID')}
-                          </p>
+                          <AmountText
+                            amount={wallet.currentBalance}
+                            className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words block"
+                          />
                         </div>
 
                         {/* Summary */}
                         <div className="flex items-center gap-4 text-xs">
                           <div className="flex items-center gap-1 text-green-600">
                             <TrendingUp className="w-3 h-3" />
-                            <span>+Rp {totalTopup.toLocaleString('id-ID')}</span>
+                            <AmountText amount={totalTopup} prefix="+" />
                           </div>
                           <div className="flex items-center gap-1 text-red-600">
                             <TrendingDown className="w-3 h-3" />
-                            <span>-Rp {totalExpense.toLocaleString('id-ID')}</span>
+                            <AmountText amount={totalExpense} prefix="-" />
                           </div>
                         </div>
 
@@ -400,9 +405,11 @@ export const WalletPage: React.FC = () => {
                                     )}
                                   </div>
                                   <div className="min-w-0 flex-1">
-                                    <p className={`text-xs font-semibold ${amountColor}`}>
-                                      {isPositive ? '+' : '-'}Rp {tx.amount.toLocaleString('id-ID')}
-                                    </p>
+                                    <AmountText
+                                      amount={tx.amount}
+                                      prefix={isPositive ? '+' : '-'}
+                                      className={`text-xs font-semibold ${amountColor}`}
+                                    />
                                     {label && <p className="text-xs text-indigo-500">{label}</p>}
                                     {tx.note && <p className="text-xs text-gray-500 truncate">{tx.note}</p>}
                                     <p className="text-xs text-gray-400">

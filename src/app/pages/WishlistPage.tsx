@@ -11,6 +11,7 @@ import { Plus, Heart, Trash2, TrendingUp } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '../components/ui/progress';
 import { useT } from '../context/LanguageContext';
+import { AmountText } from '../components/AmountText';
 
 export const WishlistPage: React.FC = () => {
   const { wishlist, addWishlistItem, deleteWishlistItem, updateWishlistItem } = useFinance();
@@ -176,9 +177,10 @@ export const WishlistPage: React.FC = () => {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-gray-600">{t.wishlist.totalValue}</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-                Rp {totalWishlistValue.toLocaleString('id-ID')}
-              </p>
+              <AmountText
+                amount={totalWishlistValue}
+                className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words block"
+              />
               <p className="text-xs text-gray-500 mt-2">{t.wishlist.items(wishlist.length)}</p>
             </div>
             <div className="w-10 h-10 bg-pink-50 rounded-xl flex items-center justify-center">
@@ -191,9 +193,10 @@ export const WishlistPage: React.FC = () => {
           <div className="flex items-start justify-between">
             <div>
               <p className="text-sm text-gray-600">{t.wishlist.totalSaved}</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words">
-                Rp {totalSaved.toLocaleString('id-ID')}
-              </p>
+              <AmountText
+                amount={totalSaved}
+                className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words block"
+              />
               <p className="text-xs text-gray-500 mt-2">
                 {totalWishlistValue > 0
                   ? t.wishlist.ofGoal(((totalSaved / totalWishlistValue) * 100).toFixed(1))
@@ -251,17 +254,18 @@ export const WishlistPage: React.FC = () => {
                     </div>
                     <Progress value={progressPercentage} className="h-2" />
                     <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>Rp {item.currentProgress.toLocaleString('id-ID')}</span>
-                      <span>Rp {item.targetPrice.toLocaleString('id-ID')}</span>
+                      <AmountText amount={item.currentProgress} />
+                      <AmountText amount={item.targetPrice} />
                     </div>
                   </div>
 
                   {/* Remaining */}
                   <div className="p-3 bg-gray-50 rounded-xl">
                     <p className="text-xs sm:text-sm text-gray-600">{t.wishlist.remaining}</p>
-                    <p className="text-base sm:text-lg font-bold text-gray-900">
-                      Rp {remaining.toLocaleString('id-ID')}
-                    </p>
+                    <AmountText
+                      amount={remaining}
+                      className="text-base sm:text-lg font-bold text-gray-900"
+                    />
                   </div>
 
                   {/* Note */}

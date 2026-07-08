@@ -1,10 +1,11 @@
 import React from 'react';
-import { Menu, Bell, Search, LogOut, User } from 'lucide-react';
+import { Menu, Bell, Search, LogOut, User, Eye, EyeOff } from 'lucide-react';
 import { signOut } from '../../lib/auth';
 import { useSession } from '../../lib/auth';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
 import { useLanguage, useT } from '../context/LanguageContext';
+import { useBalanceVisibility } from '../context/BalanceVisibilityContext';
 
 interface TopbarProps {
   onMenuClick: () => void;
@@ -15,6 +16,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
   const navigate = useNavigate();
   const { lang, setLang } = useLanguage();
   const t = useT();
+  const { isHidden, toggle } = useBalanceVisibility();
 
   const handleLogout = async () => {
     try {
@@ -73,6 +75,18 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
               EN
             </button>
           </div>
+
+          <button
+            onClick={toggle}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            title={isHidden ? 'Tampilkan saldo' : 'Sembunyikan saldo'}
+          >
+            {isHidden ? (
+              <EyeOff className="w-5 h-5 text-gray-600" />
+            ) : (
+              <Eye className="w-5 h-5 text-gray-600" />
+            )}
+          </button>
 
           <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors relative">
             <Bell className="w-5 h-5 text-gray-600" />
