@@ -40,7 +40,9 @@ export const ExpensesPage: React.FC = () => {
     walletId: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
@@ -48,30 +50,41 @@ export const ExpensesPage: React.FC = () => {
       return;
     }
 
-    addExpense({
-      amount: parseFloat(formData.amount),
-      category: formData.category,
-      date: formData.date,
-      note: formData.note,
-      tags: formData.tags ? formData.tags.split(',').map((tag) => tag.trim()) : [],
-      walletId: formData.walletId || null,
-    });
+    setIsSubmitting(true);
+    try {
+      await addExpense({
+        amount: parseFloat(formData.amount),
+        category: formData.category,
+        date: formData.date,
+        note: formData.note,
+        tags: formData.tags ? formData.tags.split(',').map((tag) => tag.trim()) : [],
+        walletId: formData.walletId || null,
+      });
 
-    setFormData({
-      amount: '',
-      category: 'Food & Dining',
-      date: format(new Date(), 'yyyy-MM-dd'),
-      note: '',
-      tags: '',
-      walletId: '',
-    });
-    setIsOpen(false);
-    toast.success(t.expenses.toast.added);
+      setFormData({
+        amount: '',
+        category: 'Food & Dining',
+        date: format(new Date(), 'yyyy-MM-dd'),
+        note: '',
+        tags: '',
+        walletId: '',
+      });
+      setIsOpen(false);
+      toast.success(t.expenses.toast.added);
+    } catch {
+      toast.error('Gagal menyimpan pengeluaran. Coba lagi.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    deleteExpense(id);
-    toast.success(t.expenses.toast.deleted);
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteExpense(id);
+      toast.success(t.expenses.toast.deleted);
+    } catch {
+      toast.error('Gagal menghapus pengeluaran.');
+    }
   };
 
   const handleSetBudget = () => {
@@ -258,8 +271,8 @@ export const ExpensesPage: React.FC = () => {
                   </div>
                 )}
 
-                <Button type="submit" className="w-full bg-red-600 hover:bg-red-700 rounded-xl">
-                  {t.expenses.addExpense}
+                <Button type="submit" disabled={isSubmitting} className="w-full bg-red-600 hover:bg-red-700 rounded-xl">
+                  {isSubmitting ? 'Menyimpan...' : t.expenses.addExpense}
                 </Button>
               </form>
             </DialogContent>

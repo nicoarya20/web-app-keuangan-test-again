@@ -256,12 +256,12 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
         walletId: income.walletId ?? undefined,
       })
       setIncomes((prev) => [mapIncome(created), ...prev])
-      if (income.walletId && userId) {
+      if (income.walletId) {
         const walletsRes = await api.wallet.list()
         setWallets(walletsRes.map(mapWallet))
       }
     },
-    [userId]
+    []
   )
 
   const addExpense = useCallback(
@@ -275,12 +275,12 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
         walletId: expense.walletId ?? undefined,
       })
       setExpenses((prev) => [mapExpense(created), ...prev])
-      if (expense.walletId && userId) {
-        const walletsRes = await api.wallet.list(userId)
+      if (expense.walletId) {
+        const walletsRes = await api.wallet.list()
         setWallets(walletsRes.map(mapWallet))
       }
     },
-    [userId]
+    []
   )
 
   const addWishlistItem = useCallback(
@@ -357,12 +357,12 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
       const income = incomes.find((i) => i.id === id)
       await api.income.delete(id)
       setIncomes((prev) => prev.filter((item) => item.id !== id))
-      if (income?.walletId && userId) {
+      if (income?.walletId) {
         const walletsRes = await api.wallet.list()
         setWallets(walletsRes.map(mapWallet))
       }
     },
-    [incomes, userId]
+    [incomes]
   )
 
   const deleteExpense = useCallback(
@@ -370,12 +370,12 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
       const expense = expenses.find((e) => e.id === id)
       await api.expense.delete(id)
       setExpenses((prev) => prev.filter((item) => item.id !== id))
-      if (expense?.walletId && userId) {
-        const walletsRes = await api.wallet.list(userId)
+      if (expense?.walletId) {
+        const walletsRes = await api.wallet.list()
         setWallets(walletsRes.map(mapWallet))
       }
     },
-    [expenses, userId]
+    [expenses]
   )
 
   const deleteWishlistItem = useCallback(

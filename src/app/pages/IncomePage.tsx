@@ -28,7 +28,9 @@ export const IncomePage: React.FC = () => {
     walletId: NO_WALLET,
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
@@ -36,30 +38,41 @@ export const IncomePage: React.FC = () => {
       return;
     }
 
-    addIncome({
-      amount: parseFloat(formData.amount),
-      category: formData.category,
-      date: formData.date,
-      recurring: formData.recurring,
-      note: formData.note,
-      walletId: formData.walletId === NO_WALLET ? null : formData.walletId,
-    });
+    setIsSubmitting(true);
+    try {
+      await addIncome({
+        amount: parseFloat(formData.amount),
+        category: formData.category,
+        date: formData.date,
+        recurring: formData.recurring,
+        note: formData.note,
+        walletId: formData.walletId === NO_WALLET ? null : formData.walletId,
+      });
 
-    setFormData({
-      amount: '',
-      category: 'Salary',
-      date: format(new Date(), 'yyyy-MM-dd'),
-      recurring: false,
-      note: '',
-      walletId: NO_WALLET,
-    });
-    setIsOpen(false);
-    toast.success(t.income.toast.added);
+      setFormData({
+        amount: '',
+        category: 'Salary',
+        date: format(new Date(), 'yyyy-MM-dd'),
+        recurring: false,
+        note: '',
+        walletId: NO_WALLET,
+      });
+      setIsOpen(false);
+      toast.success(t.income.toast.added);
+    } catch {
+      toast.error('Gagal menyimpan pemasukan. Coba lagi.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    deleteIncome(id);
-    toast.success(t.income.toast.deleted);
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteIncome(id);
+      toast.success(t.income.toast.deleted);
+    } catch {
+      toast.error('Gagal menghapus pemasukan.');
+    }
   };
 
   const totalIncome = incomes.reduce((sum, income) => sum + income.amount, 0);
@@ -177,8 +190,8 @@ export const IncomePage: React.FC = () => {
                 />
               </div>
 
-              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 rounded-xl">
-                {t.income.addIncome}
+              <Button type="submit" disabled={isSubmitting} className="w-full bg-indigo-600 hover:bg-indigo-700 rounded-xl">
+                {isSubmitting ? 'Menyimpan...' : t.income.addIncome}
               </Button>
             </form>
           </DialogContent>
