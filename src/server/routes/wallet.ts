@@ -162,6 +162,16 @@ router.delete('/transactions/:id', async (c) => {
       `UPDATE wallets SET "currentBalance" = "currentBalance" + $1, "updatedAt" = NOW() WHERE id = $2`,
       [balanceChange, tx.walletId]
     )
+
+    // Delete the linked income or expense if this tx came from one
+    if (tx.referenceId) {
+      if (tx.type === 'TOPUP') {
+        await client.query(`DELETE FROM incomes WHERE id = $1`, [tx.referenceId])
+      } else if (tx.type === 'EXPENSE') {
+        await client.query(`DELETE FROM expenses WHERE id = $1`, [tx.referenceId])
+      }
+    }
+
     await client.query(`DELETE FROM wallet_transactions WHERE id = $1`, [id])
 
     await client.query('COMMIT')
