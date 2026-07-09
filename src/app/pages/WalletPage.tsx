@@ -387,6 +387,8 @@ export const WalletPage: React.FC = () => {
                               ? t.wallet.transferOut
                               : tx.type === 'transfer_in'
                               ? t.wallet.transferIn
+                              : tx.type === 'wishlist_fund'
+                              ? t.wallet.wishlistFund
                               : null;
 
                             return (

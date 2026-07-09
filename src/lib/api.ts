@@ -53,6 +53,7 @@ export interface Wishlist {
   currentProgress: number
   priority: 'LOW' | 'MEDIUM' | 'HIGH'
   note: string | null
+  walletId: string | null
   createdAt: string
   updatedAt: string
 }
@@ -82,7 +83,7 @@ export interface Wallet {
 export interface WalletTransaction {
   id: string
   walletId: string
-  type: 'TOPUP' | 'EXPENSE' | 'TRANSFER_OUT' | 'TRANSFER_IN'
+  type: 'TOPUP' | 'EXPENSE' | 'TRANSFER_OUT' | 'TRANSFER_IN' | 'WISHLIST_FUND'
   amount: number
   note: string | null
   date: string
@@ -260,10 +261,19 @@ export const api = {
     list: () => request<Wishlist[]>('/wishlists'),
     summary: () =>
       request<WishlistSummary>('/wishlists/summary'),
-    create: (data: { name: string; targetPrice: number; currentProgress: number; priority: 'LOW' | 'MEDIUM' | 'HIGH'; note?: string }) =>
+    create: (data: { name: string; targetPrice: number; currentProgress: number; priority: 'LOW' | 'MEDIUM' | 'HIGH'; note?: string; walletId?: string }) =>
       request<Wishlist>('/wishlists', { method: 'POST', body: JSON.stringify(data) }),
     update: (id: string, data: Partial<Wishlist>) =>
       request<Wishlist>(`/wishlists/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    // Tambah tabungan (delta) dari wallet — currentProgress hanya boleh naik lewat sini
+    fund: (id: string, data: { amount: number; walletId?: string; date: string }) =>
+      request<{ wishlist: Wishlist; wallet: Wallet }>(`/wishlists/${id}/fund`, { method: 'POST', body: JSON.stringify(data) }),
+    // "Sudah Dibeli": tidak refund, tx funding dipertahankan sebagai bukti uang keluar
+    complete: (id: string) =>
+      request<{ success: boolean }>(`/wishlists/${id}/complete`, { method: 'POST' }),
+    // "Batalkan": refund semua funding ke wallet asalnya, lalu hapus
+    cancel: (id: string) =>
+      request<{ success: boolean }>(`/wishlists/${id}/cancel`, { method: 'POST' }),
     delete: (id: string) =>
       request<{ success: boolean }>(`/wishlists/${id}`, { method: 'DELETE' }),
   },

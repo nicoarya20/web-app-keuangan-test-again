@@ -42,6 +42,7 @@ export interface WishlistItem {
   currentProgress: number
   priority: 'low' | 'medium' | 'high'
   note?: string
+  walletId?: string | null
 }
 
 export interface Saving {
@@ -54,7 +55,7 @@ export interface Saving {
 
 export interface WalletTransaction {
   id: string
-  type: 'topup' | 'expense' | 'transfer_out' | 'transfer_in'
+  type: 'topup' | 'expense' | 'transfer_out' | 'transfer_in' | 'wishlist_fund'
   amount: number
   note?: string
   date: string
@@ -88,9 +89,11 @@ interface FinanceContextType {
   addWallet: (wallet: Omit<Wallet, 'id' | 'currentBalance' | 'transactions'>) => Promise<void>
   addWalletTransaction: (walletId: string, tx: Omit<WalletTransaction, 'id'>) => Promise<void>
   updateWishlistItem: (id: string, updates: Partial<WishlistItem>) => Promise<void>
+  fundWishlistItem: (id: string, amount: number, walletId?: string, date?: string) => Promise<void>
+  completeWishlistItem: (id: string) => Promise<void>
+  cancelWishlistItem: (id: string) => Promise<void>
   deleteIncome: (id: string) => Promise<void>
   deleteExpense: (id: string) => Promise<void>
-  deleteWishlistItem: (id: string) => Promise<void>
   deleteSaving: (id: string) => Promise<void>
   deleteWallet: (id: string) => Promise<void>
   deleteWalletTransaction: (walletId: string, txId: string) => Promise<void>
@@ -138,6 +141,7 @@ function mapWishlist(api: ApiWishlist): WishlistItem {
     currentProgress: api.currentProgress,
     priority: api.priority.toLowerCase() as 'low' | 'medium' | 'high',
     note: api.note || undefined,
+    walletId: api.walletId ?? null,
   }
 }
 
@@ -165,7 +169,7 @@ function mapWallet(api: ApiWallet): Wallet {
 function mapWalletTransaction(api: ApiWalletTransaction): WalletTransaction {
   return {
     id: api.id,
-    type: api.type.toLowerCase() as 'topup' | 'expense' | 'transfer_out' | 'transfer_in',
+    type: api.type.toLowerCase() as 'topup' | 'expense' | 'transfer_out' | 'transfer_in' | 'wishlist_fund',
     amount: api.amount,
     note: api.note || undefined,
     date: api.date.split('T')[0],
@@ -291,6 +295,7 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
         currentProgress: item.currentProgress,
         priority: item.priority.toUpperCase() as 'LOW' | 'MEDIUM' | 'HIGH',
         note: item.note,
+        walletId: item.walletId ?? undefined,
       })
       setWishlist((prev) => [mapWishlist(created), ...prev])
     },
@@ -378,10 +383,42 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
     [expenses]
   )
 
-  const deleteWishlistItem = useCallback(
+  // Tambah tabungan dari wallet — update wishlist + wallet yang terpengaruh
+  const fundWishlistItem = useCallback(
+    async (id: string, amount: number, walletId?: string, date?: string) => {
+      const result = await api.wishlist.fund(id, {
+        amount,
+        walletId,
+        date: date ?? new Date().toISOString().split('T')[0],
+      })
+      setWishlist((prev) =>
+        prev.map((item) => (item.id === id ? mapWishlist(result.wishlist) : item))
+      )
+      setWallets((prev) =>
+        prev.map((w) => (w.id === result.wallet.id ? mapWallet(result.wallet) : w))
+      )
+    },
+    []
+  )
+
+  // "Sudah Dibeli": tidak refund. Refresh wallets karena note tx funding berubah.
+  const completeWishlistItem = useCallback(
     async (id: string) => {
-      await api.wishlist.delete(id)
+      await api.wishlist.complete(id)
       setWishlist((prev) => prev.filter((item) => item.id !== id))
+      const walletsRes = await api.wallet.list()
+      setWallets(walletsRes.map(mapWallet))
+    },
+    []
+  )
+
+  // "Batalkan": refund ke wallet asal. Refresh wallets karena saldo berubah.
+  const cancelWishlistItem = useCallback(
+    async (id: string) => {
+      await api.wishlist.cancel(id)
+      setWishlist((prev) => prev.filter((item) => item.id !== id))
+      const walletsRes = await api.wallet.list()
+      setWallets(walletsRes.map(mapWallet))
     },
     []
   )
@@ -448,9 +485,11 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
         addWallet,
         addWalletTransaction,
         updateWishlistItem,
+        fundWishlistItem,
+        completeWishlistItem,
+        cancelWishlistItem,
         deleteIncome,
         deleteExpense,
-        deleteWishlistItem,
         deleteSaving,
         deleteWallet,
         deleteWalletTransaction,
