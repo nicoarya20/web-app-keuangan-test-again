@@ -7,14 +7,16 @@ import { Label } from '../components/ui/label';
 import { Textarea } from '../components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, Heart, Trash2, TrendingUp } from 'lucide-react';
+import { Plus, Heart, TrendingUp, Check, Ban } from 'lucide-react';
 import { toast } from 'sonner';
 import { Progress } from '../components/ui/progress';
 import { useT } from '../context/LanguageContext';
 import { AmountText } from '../components/AmountText';
 
+const WALLET_EMOJI: Record<string, string> = { cash: '💵', ewallet: '📱', bank: '🏦' };
+
 export const WishlistPage: React.FC = () => {
-  const { wishlist, addWishlistItem, deleteWishlistItem, updateWishlistItem } = useFinance();
+  const { wishlist, wallets, addWishlistItem, fundWishlistItem, completeWishlistItem, cancelWishlistItem } = useFinance();
   const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState({
@@ -23,7 +25,11 @@ export const WishlistPage: React.FC = () => {
     currentProgress: '',
     priority: 'medium' as 'low' | 'medium' | 'high',
     note: '',
+    walletId: 'none',
   });
+  // Per-item funding state
+  const [fundAmount, setFundAmount] = useState<Record<string, string>>({});
+  const [fundWallet, setFundWallet] = useState<Record<string, string>>({});
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -44,23 +50,54 @@ export const WishlistPage: React.FC = () => {
       currentProgress: formData.currentProgress ? parseFloat(formData.currentProgress) : 0,
       priority: formData.priority,
       note: formData.note,
+      walletId: formData.walletId !== 'none' ? formData.walletId : undefined,
     });
 
-    setFormData({ name: '', targetPrice: '', currentProgress: '', priority: 'medium', note: '' });
+    setFormData({ name: '', targetPrice: '', currentProgress: '', priority: 'medium', note: '', walletId: 'none' });
     setIsOpen(false);
     toast.success(t.wishlist.toast.added);
   };
 
-  const handleDelete = (id: string) => {
-    deleteWishlistItem(id);
-    toast.success(t.wishlist.toast.deleted);
+  const handleFund = async (itemId: string, defaultWalletId?: string | null) => {
+    const amount = parseFloat(fundAmount[itemId] ?? '');
+    if (isNaN(amount) || amount <= 0) return;
+
+    const walletId = fundWallet[itemId] ?? defaultWalletId ?? undefined;
+    if (!walletId) {
+      toast.error(t.wishlist.toast.selectWallet);
+      return;
+    }
+    const wallet = wallets.find((w) => w.id === walletId);
+    if (wallet && amount > wallet.currentBalance) {
+      toast.error(t.wishlist.toast.insufficientBalance);
+      return;
+    }
+
+    try {
+      await fundWishlistItem(itemId, amount, walletId);
+      setFundAmount((prev) => ({ ...prev, [itemId]: '' }));
+      toast.success(t.wishlist.toast.funded);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t.wishlist.toast.insufficientBalance);
+    }
   };
 
-  const handleUpdateProgress = (id: string, amount: string) => {
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount < 0) return;
-    updateWishlistItem(id, { currentProgress: parsedAmount });
-    toast.success(t.wishlist.toast.progressUpdated);
+  const handleComplete = async (id: string) => {
+    try {
+      await completeWishlistItem(id);
+      toast.success(t.wishlist.toast.purchased);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error');
+    }
+  };
+
+  const handleCancel = async (id: string) => {
+    try {
+      await cancelWishlistItem(id);
+      toast.success(t.wishlist.toast.cancelled);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Error');
+    }
   };
 
   const getPriorityColor = (priority: string) => {
@@ -152,6 +189,26 @@ export const WishlistPage: React.FC = () => {
               </div>
 
               <div>
+                <Label htmlFor="walletSource">{t.wishlist.walletSource}</Label>
+                <Select
+                  value={formData.walletId}
+                  onValueChange={(value) => setFormData({ ...formData, walletId: value })}
+                >
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">{t.wishlist.noWallet}</SelectItem>
+                    {wallets.map((w) => (
+                      <SelectItem key={w.id} value={w.id}>
+                        {WALLET_EMOJI[w.walletType]} {w.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
                 <Label htmlFor="note">{t.wishlist.motivationNote}</Label>
                 <Textarea
                   id="note"
@@ -221,6 +278,8 @@ export const WishlistPage: React.FC = () => {
             const progressPercentage = (item.currentProgress / item.targetPrice) * 100;
             const remaining = item.targetPrice - item.currentProgress;
             const priorityLabel = t.wishlist.priorityLabels[item.priority] ?? item.priority;
+            const selectedWalletId = fundWallet[item.id] ?? item.walletId ?? '';
+            const selectedWallet = wallets.find((w) => w.id === selectedWalletId);
 
             return (
               <Card key={item.id} className="p-4 sm:p-5 bg-white rounded-2xl shadow-sm hover:shadow-md transition-shadow">
@@ -235,13 +294,6 @@ export const WishlistPage: React.FC = () => {
                         {priorityLabel} {t.wishlist.prioritySuffix}
                       </span>
                     </div>
-                    <button
-                      onClick={() => handleDelete(item.id)}
-                      className="p-2.5 hover:bg-red-50 rounded-lg transition-colors"
-                      aria-label="Delete wishlist item"
-                    >
-                      <Trash2 className="w-4 h-4 text-red-500" />
-                    </button>
                   </div>
 
                   {/* Target & Progress */}
@@ -275,32 +327,74 @@ export const WishlistPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Update Progress */}
-                  <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      placeholder={t.wishlist.addSavingsPlaceholder}
-                      className="rounded-xl flex-1 text-base"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const input = e.currentTarget;
-                          handleUpdateProgress(item.id, input.value);
-                          input.value = '';
-                        }
-                      }}
-                    />
+                  {/* Add savings from wallet */}
+                  {wallets.length > 0 && (
+                    <div className="space-y-2">
+                      <Select
+                        value={selectedWalletId}
+                        onValueChange={(value) => setFundWallet((prev) => ({ ...prev, [item.id]: value }))}
+                      >
+                        <SelectTrigger className="rounded-xl">
+                          <SelectValue placeholder={t.wishlist.selectWallet} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {wallets.map((w) => (
+                            <SelectItem key={w.id} value={w.id}>
+                              {WALLET_EMOJI[w.walletType]} {w.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedWallet && (
+                        <p className="text-xs text-gray-500 flex items-center gap-1">
+                          {t.wishlist.fundFrom} {WALLET_EMOJI[selectedWallet.walletType]} {selectedWallet.name} · {t.wishlist.balanceLabel}:{' '}
+                          <AmountText amount={selectedWallet.currentBalance} className="font-medium text-gray-700" />
+                        </p>
+                      )}
+                      <div className="flex gap-2">
+                        <Input
+                          type="number"
+                          placeholder={t.wishlist.addSavingsPlaceholder}
+                          className="rounded-xl flex-1 text-base"
+                          value={fundAmount[item.id] ?? ''}
+                          onChange={(e) => setFundAmount((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleFund(item.id, item.walletId);
+                            }
+                          }}
+                        />
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 rounded-xl"
+                          onClick={() => handleFund(item.id, item.walletId)}
+                        >
+                          {t.wishlist.update}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Actions: Purchased vs Cancel */}
+                  <div className="flex gap-2 pt-1">
                     <Button
                       size="sm"
-                      className="bg-green-600 hover:bg-green-700 rounded-xl"
-                      onClick={(e) => {
-                        const input = e.currentTarget.previousElementSibling as HTMLInputElement;
-                        if (input) {
-                          handleUpdateProgress(item.id, input.value);
-                          input.value = '';
-                        }
-                      }}
+                      variant="outline"
+                      className="flex-1 rounded-xl border-green-200 text-green-700 hover:bg-green-50"
+                      onClick={() => handleComplete(item.id)}
                     >
-                      {t.wishlist.update}
+                      <Check className="w-4 h-4 mr-1" />
+                      {t.wishlist.markPurchased}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 rounded-xl border-red-200 text-red-600 hover:bg-red-50"
+                      onClick={() => handleCancel(item.id)}
+                    >
+                      <Ban className="w-4 h-4 mr-1" />
+                      {t.wishlist.cancelGoal}
                     </Button>
                   </div>
                 </div>

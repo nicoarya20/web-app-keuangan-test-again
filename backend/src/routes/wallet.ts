@@ -210,14 +210,18 @@ router.post('/transfer', async (c) => {
 
 router.delete('/transactions/:id', async (c) => {
   const { id } = c.req.param()
+  const user = c.get('user')
 
   const client = await db.connect()
   try {
     await client.query('BEGIN')
 
+    // JOIN ke wallets untuk verifikasi ownership (cegah IDOR) + lock kedua row
     const { rows: [tx] } = await client.query(
-      `SELECT * FROM wallet_transactions WHERE id = $1 FOR UPDATE`,
-      [id]
+      `SELECT wt.* FROM wallet_transactions wt
+       JOIN wallets w ON wt."walletId" = w.id
+       WHERE wt.id = $1 AND w."userId" = $2 FOR UPDATE`,
+      [id, user.id]
     )
     if (!tx) {
       await client.query('ROLLBACK')
@@ -231,12 +235,19 @@ router.delete('/transactions/:id', async (c) => {
       [balanceChange, tx.walletId]
     )
 
-    // Delete the linked income or expense if this tx came from one
+    // Reverse efek pada record sumber, kalau tx ini berasal dari salah satunya
     if (tx.referenceId) {
       if (tx.type === 'TOPUP') {
         await client.query(`DELETE FROM incomes WHERE id = $1`, [tx.referenceId])
       } else if (tx.type === 'EXPENSE') {
         await client.query(`DELETE FROM expenses WHERE id = $1`, [tx.referenceId])
+      } else if (tx.type === 'WISHLIST_FUND') {
+        // Kurangi progress wishlist sebesar funding yang dibatalkan (kalau wishlist masih ada)
+        await client.query(
+          `UPDATE wishlists SET "currentProgress" = GREATEST(0, "currentProgress" - $1), "updatedAt" = NOW()
+           WHERE id = $2 AND "userId" = $3`,
+          [tx.amount, tx.referenceId, user.id]
+        )
       }
     }
 
