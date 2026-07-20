@@ -91,22 +91,26 @@ export const WalletPage: React.FC = () => {
     toast.success(t.wallet.toast.walletDeleted(name));
   };
 
-  const handleAddTx = (e: React.FormEvent) => {
+  const handleAddTx = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!txForm.amount || parseFloat(txForm.amount) <= 0) {
       toast.error(t.wallet.toast.invalidAmount);
       return;
     }
 
-    addWalletTransaction(selectedWalletId, {
-      type: txForm.type,
-      amount: parseFloat(txForm.amount),
-      note: txForm.note,
-      date: txForm.date,
-    });
-
-    setIsTxOpen(false);
-    toast.success(t.wallet.toast.expenseSuccess);
+    try {
+      await addWalletTransaction(selectedWalletId, {
+        type: txForm.type,
+        amount: parseFloat(txForm.amount),
+        note: txForm.note,
+        date: txForm.date,
+      });
+      setIsTxOpen(false);
+      toast.success(t.wallet.toast.expenseSuccess);
+    } catch (err: any) {
+      const msg = err?.message?.includes('Insufficient') ? t.wallet.toast.insufficientBalance : err?.message;
+      toast.error(msg || t.wallet.toast.invalidAmount);
+    }
   };
 
   // Top Up = transfer dari dompet lain (mis. BANK → e-wallet). Bukan "uang dari langit".
