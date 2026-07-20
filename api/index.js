@@ -22967,7 +22967,7 @@ var require_postgres_date = __commonJS({
     var DATE = /^(\d{1,})-(\d{2})-(\d{2})( BC)?$/;
     var TIME_ZONE = /([Z+-])(\d{2})?:?(\d{2})?:?(\d{2})?/;
     var INFINITY = /^-?infinity$/;
-    module.exports = function parseDate(isoDate) {
+    module.exports = function parseDate2(isoDate) {
       if (INFINITY.test(isoDate)) {
         return Number(isoDate.replace("i", "I"));
       }
@@ -23197,7 +23197,7 @@ var require_textParsers = __commonJS({
   "node_modules/pg-types/lib/textParsers.js"(exports, module) {
     var array2 = require_postgres_array();
     var arrayParser = require_arrayParser();
-    var parseDate = require_postgres_date();
+    var parseDate2 = require_postgres_date();
     var parseInterval = require_postgres_interval();
     var parseByteA = require_postgres_bytea();
     function allowNull(fn) {
@@ -23264,7 +23264,7 @@ var require_textParsers = __commonJS({
       }
       var p = arrayParser.create(value, function(entry) {
         if (entry !== null) {
-          entry = parseDate(entry);
+          entry = parseDate2(entry);
         }
         return entry;
       });
@@ -23348,9 +23348,9 @@ var require_textParsers = __commonJS({
       register(700, parseFloat);
       register(701, parseFloat);
       register(16, parseBool);
-      register(1082, parseDate);
-      register(1114, parseDate);
-      register(1184, parseDate);
+      register(1082, parseDate2);
+      register(1114, parseDate2);
+      register(1184, parseDate2);
       register(600, parsePoint);
       register(651, parseStringArray);
       register(718, parseCircle);
@@ -23575,7 +23575,7 @@ var require_binaryParsers = __commonJS({
       var scale = Math.pow(10, parseBits(value, 16, 48));
       return (sign2 === 0 ? 1 : -1) * Math.round(result * scale) / scale;
     };
-    var parseDate = function(isUTC, value) {
+    var parseDate2 = function(isUTC, value) {
       var sign2 = parseBits(value, 1);
       var rawValue = parseBits(value, 63, 1);
       var result = new Date((sign2 === 0 ? 1 : -1) * rawValue / 1e3 + 9466848e5);
@@ -23657,8 +23657,8 @@ var require_binaryParsers = __commonJS({
       register(700, parseFloat32);
       register(701, parseFloat64);
       register(16, parseBool);
-      register(1114, parseDate.bind(null, false));
-      register(1184, parseDate.bind(null, true));
+      register(1114, parseDate2.bind(null, false));
+      register(1184, parseDate2.bind(null, true));
       register(1e3, parseArray);
       register(1007, parseArray);
       register(1016, parseArray);
@@ -53342,7 +53342,7 @@ router5.post("/", async (c) => {
         await client.query("ROLLBACK");
         return c.json({ error: "Wallet not found" }, 404);
       }
-      if (Number(wallet.currentBalance) < body.amount) {
+      if (wallet.walletType !== "EWALLET" && Number(wallet.currentBalance) < body.amount) {
         await client.query("ROLLBACK");
         return c.json({ error: "Insufficient balance" }, 400);
       }
@@ -53545,6 +53545,10 @@ router6.post("/transactions", async (c) => {
       await client.query("ROLLBACK");
       return c.json({ error: "Wallet not found" }, 404);
     }
+    if (type === "EXPENSE" && wallet.walletType !== "EWALLET" && Number(wallet.currentBalance) - amount < 0) {
+      await client.query("ROLLBACK");
+      return c.json({ error: "Insufficient balance" }, 400);
+    }
     const { rows: [tx] } = await client.query(
       `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "createdAt", "updatedAt")
        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
@@ -53566,14 +53570,76 @@ router6.post("/transactions", async (c) => {
     client.release();
   }
 });
+router6.post("/transfer", async (c) => {
+  const body = await c.req.json();
+  const user = c.get("user");
+  const { fromWalletId, toWalletId, amount, note, date: date4 } = body;
+  if (fromWalletId === toWalletId)
+    return c.json({ error: "Cannot transfer to the same wallet" }, 400);
+  if (!amount || amount <= 0)
+    return c.json({ error: "Invalid amount" }, 400);
+  const dateValue = date4.includes("T") ? new Date(date4) : /* @__PURE__ */ new Date(date4 + "T00:00:00.000Z");
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: [fromWallet] } = await client.query(
+      `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+      [fromWalletId, user.id]
+    );
+    if (!fromWallet) {
+      await client.query("ROLLBACK");
+      return c.json({ error: "Source wallet not found" }, 404);
+    }
+    if (fromWallet.walletType !== "EWALLET" && Number(fromWallet.currentBalance) < amount) {
+      await client.query("ROLLBACK");
+      return c.json({ error: "Insufficient balance" }, 400);
+    }
+    const { rows: [toWallet] } = await client.query(
+      `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+      [toWalletId, user.id]
+    );
+    if (!toWallet) {
+      await client.query("ROLLBACK");
+      return c.json({ error: "Destination wallet not found" }, 404);
+    }
+    await client.query(
+      `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "createdAt", "updatedAt")
+       VALUES ($1, $2, 'TRANSFER_OUT', $3, $4, $5, NOW(), NOW())`,
+      [randomUUID4(), fromWalletId, amount, note ?? null, dateValue]
+    );
+    await client.query(
+      `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "createdAt", "updatedAt")
+       VALUES ($1, $2, 'TRANSFER_IN', $3, $4, $5, NOW(), NOW())`,
+      [randomUUID4(), toWalletId, amount, note ?? null, dateValue]
+    );
+    const { rows: [updatedFrom] } = await client.query(
+      `UPDATE wallets SET "currentBalance" = "currentBalance" - $1, "updatedAt" = NOW() WHERE id = $2 RETURNING *`,
+      [amount, fromWalletId]
+    );
+    const { rows: [updatedTo] } = await client.query(
+      `UPDATE wallets SET "currentBalance" = "currentBalance" + $1, "updatedAt" = NOW() WHERE id = $2 RETURNING *`,
+      [amount, toWalletId]
+    );
+    await client.query("COMMIT");
+    return c.json({ fromWallet: updatedFrom, toWallet: updatedTo }, 201);
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+});
 router6.delete("/transactions/:id", async (c) => {
   const { id } = c.req.param();
+  const user = c.get("user");
   const client = await db.connect();
   try {
     await client.query("BEGIN");
     const { rows: [tx] } = await client.query(
-      `SELECT * FROM wallet_transactions WHERE id = $1 FOR UPDATE`,
-      [id]
+      `SELECT wt.* FROM wallet_transactions wt
+       JOIN wallets w ON wt."walletId" = w.id
+       WHERE wt.id = $1 AND w."userId" = $2 FOR UPDATE`,
+      [id, user.id]
     );
     if (!tx) {
       await client.query("ROLLBACK");
@@ -53589,6 +53655,12 @@ router6.delete("/transactions/:id", async (c) => {
         await client.query(`DELETE FROM incomes WHERE id = $1`, [tx.referenceId]);
       } else if (tx.type === "EXPENSE") {
         await client.query(`DELETE FROM expenses WHERE id = $1`, [tx.referenceId]);
+      } else if (tx.type === "WISHLIST_FUND") {
+        await client.query(
+          `UPDATE wishlists SET "currentProgress" = GREATEST(0, "currentProgress" - $1), "updatedAt" = NOW()
+           WHERE id = $2 AND "userId" = $3`,
+          [tx.amount, tx.referenceId, user.id]
+        );
       }
     }
     await client.query(`DELETE FROM wallet_transactions WHERE id = $1`, [id]);
@@ -53677,6 +53749,10 @@ init_db();
 import { randomUUID as randomUUID6 } from "crypto";
 var router8 = new Hono2();
 router8.use("*", authMiddleware);
+function parseDate(date4) {
+  if (!date4) return /* @__PURE__ */ new Date();
+  return date4.includes("T") ? new Date(date4) : /* @__PURE__ */ new Date(date4 + "T00:00:00.000Z");
+}
 router8.get("/", async (c) => {
   const user = c.get("user");
   const { rows } = await db.query(
@@ -53709,17 +53785,25 @@ router8.post("/", async (c) => {
   const body = await c.req.json();
   const user = c.get("user");
   const id = randomUUID6();
+  if (body.walletId) {
+    const { rows: rows2 } = await db.query(
+      `SELECT id FROM wallets WHERE id = $1 AND "userId" = $2`,
+      [body.walletId, user.id]
+    );
+    if (!rows2[0]) return c.json({ error: "Wallet not found" }, 404);
+  }
   const { rows } = await db.query(
-    `INSERT INTO wishlists (id, "userId", name, "targetPrice", "currentProgress", priority, note, "createdAt", "updatedAt")
-     VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+    `INSERT INTO wishlists (id, "userId", name, "targetPrice", "currentProgress", priority, note, "walletId", "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
      RETURNING *`,
-    [id, user.id, body.name, body.targetPrice, body.currentProgress ?? 0, body.priority ?? "MEDIUM", body.note ?? null]
+    [id, user.id, body.name, body.targetPrice, body.currentProgress ?? 0, body.priority ?? "MEDIUM", body.note ?? null, body.walletId ?? null]
   );
   return c.json(rows[0], 201);
 });
 router8.patch("/:id", async (c) => {
   const body = await c.req.json();
   const { id } = c.req.param();
+  const user = c.get("user");
   const fields = [];
   const values = [];
   let i = 1;
@@ -53731,10 +53815,6 @@ router8.patch("/:id", async (c) => {
     fields.push(`"targetPrice" = $${i++}`);
     values.push(body.targetPrice);
   }
-  if (body.currentProgress !== void 0) {
-    fields.push(`"currentProgress" = $${i++}`);
-    values.push(body.currentProgress);
-  }
   if (body.priority !== void 0) {
     fields.push(`priority = $${i++}`);
     values.push(body.priority);
@@ -53743,20 +53823,160 @@ router8.patch("/:id", async (c) => {
     fields.push(`note = $${i++}`);
     values.push(body.note);
   }
+  if (body.walletId !== void 0) {
+    fields.push(`"walletId" = $${i++}`);
+    values.push(body.walletId);
+  }
   if (fields.length === 0) return c.json({ error: "No fields to update" }, 400);
   fields.push(`"updatedAt" = NOW()`);
   values.push(id);
+  values.push(user.id);
   const { rows } = await db.query(
-    `UPDATE wishlists SET ${fields.join(", ")} WHERE id = $${i} RETURNING *`,
+    `UPDATE wishlists SET ${fields.join(", ")} WHERE id = $${i++} AND "userId" = $${i} RETURNING *`,
     values
   );
   if (!rows[0]) return c.json({ error: "Record not found" }, 404);
   return c.json(rows[0]);
 });
+router8.post("/:id/fund", async (c) => {
+  const { id } = c.req.param();
+  const body = await c.req.json();
+  const user = c.get("user");
+  const amount = Number(body.amount);
+  const date4 = parseDate(body.date);
+  if (!amount || amount <= 0) return c.json({ error: "Invalid amount" }, 400);
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: [wishlist] } = await client.query(
+      `SELECT * FROM wishlists WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+      [id, user.id]
+    );
+    if (!wishlist) {
+      await client.query("ROLLBACK");
+      return c.json({ error: "Record not found" }, 404);
+    }
+    const walletId = body.walletId ?? wishlist.walletId;
+    if (!walletId) {
+      await client.query("ROLLBACK");
+      return c.json({ error: "Wallet is required" }, 400);
+    }
+    const { rows: [wallet] } = await client.query(
+      `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+      [walletId, user.id]
+    );
+    if (!wallet) {
+      await client.query("ROLLBACK");
+      return c.json({ error: "Wallet not found" }, 404);
+    }
+    if (Number(wallet.currentBalance) < amount) {
+      await client.query("ROLLBACK");
+      return c.json({ error: "Insufficient balance" }, 400);
+    }
+    const { rows: [updatedWishlist] } = await client.query(
+      `UPDATE wishlists
+       SET "currentProgress" = "currentProgress" + $1, "walletId" = COALESCE("walletId", $3), "updatedAt" = NOW()
+       WHERE id = $2 RETURNING *`,
+      [amount, id, walletId]
+    );
+    await client.query(
+      `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "referenceId", "createdAt", "updatedAt")
+       VALUES ($1, $2, 'WISHLIST_FUND', $3, $4, $5, $6, NOW(), NOW())`,
+      [randomUUID6(), walletId, amount, `Wishlist: ${wishlist.name}`, date4, id]
+    );
+    const { rows: [updatedWallet] } = await client.query(
+      `UPDATE wallets SET "currentBalance" = "currentBalance" - $1, "updatedAt" = NOW()
+       WHERE id = $2 RETURNING *`,
+      [amount, walletId]
+    );
+    await client.query("COMMIT");
+    return c.json({ wishlist: updatedWishlist, wallet: updatedWallet });
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+});
+router8.post("/:id/complete", async (c) => {
+  const { id } = c.req.param();
+  const user = c.get("user");
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: [wishlist] } = await client.query(
+      `SELECT * FROM wishlists WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+      [id, user.id]
+    );
+    if (!wishlist) {
+      await client.query("ROLLBACK");
+      return c.json({ error: "Record not found" }, 404);
+    }
+    await client.query(
+      `UPDATE wallet_transactions SET note = $1, "updatedAt" = NOW()
+       WHERE "referenceId" = $2 AND type = 'WISHLIST_FUND'`,
+      [`Dibeli: ${wishlist.name}`, id]
+    );
+    await client.query(`DELETE FROM wishlists WHERE id = $1 AND "userId" = $2`, [id, user.id]);
+    await client.query("COMMIT");
+    return c.json({ success: true });
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+});
+async function cancelWishlist(id, userId) {
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const { rows: [wishlist] } = await client.query(
+      `SELECT * FROM wishlists WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+      [id, userId]
+    );
+    if (!wishlist) {
+      await client.query("ROLLBACK");
+      return { notFound: true };
+    }
+    await client.query(
+      `UPDATE wallets w
+       SET "currentBalance" = w."currentBalance" + agg.total, "updatedAt" = NOW()
+       FROM (
+         SELECT "walletId", SUM(amount) AS total
+         FROM wallet_transactions
+         WHERE "referenceId" = $1 AND type = 'WISHLIST_FUND'
+         GROUP BY "walletId"
+       ) agg
+       WHERE w.id = agg."walletId" AND w."userId" = $2`,
+      [id, userId]
+    );
+    await client.query(
+      `DELETE FROM wallet_transactions WHERE "referenceId" = $1 AND type = 'WISHLIST_FUND'`,
+      [id]
+    );
+    await client.query(`DELETE FROM wishlists WHERE id = $1 AND "userId" = $2`, [id, userId]);
+    await client.query("COMMIT");
+    return { notFound: false };
+  } catch (e) {
+    await client.query("ROLLBACK");
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+router8.post("/:id/cancel", async (c) => {
+  const { id } = c.req.param();
+  const user = c.get("user");
+  const result = await cancelWishlist(id, user.id);
+  if (result.notFound) return c.json({ error: "Record not found" }, 404);
+  return c.json({ success: true });
+});
 router8.delete("/:id", async (c) => {
   const { id } = c.req.param();
-  const { rowCount } = await db.query(`DELETE FROM wishlists WHERE id = $1`, [id]);
-  if (!rowCount) return c.json({ error: "Record not found" }, 404);
+  const user = c.get("user");
+  const result = await cancelWishlist(id, user.id);
+  if (result.notFound) return c.json({ error: "Record not found" }, 404);
   return c.json({ success: true });
 });
 var wishlist_default = router8;

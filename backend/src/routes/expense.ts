@@ -67,7 +67,8 @@ router.post('/', async (c) => {
         await client.query('ROLLBACK')
         return c.json({ error: 'Wallet not found' }, 404)
       }
-      if (Number(wallet.currentBalance) < body.amount) {
+      // Hanya EWALLET yang boleh saldo minus (utang berjalan). CASH & BANK direm.
+      if (wallet.walletType !== 'EWALLET' && Number(wallet.currentBalance) < body.amount) {
         await client.query('ROLLBACK')
         return c.json({ error: 'Insufficient balance' }, 400)
       }

@@ -46,7 +46,16 @@ export const WalletPage: React.FC = () => {
   });
 
   const [txForm, setTxForm] = useState({
-    type: 'topup' as 'topup' | 'expense',
+    type: 'expense' as 'topup' | 'expense',
+    amount: '',
+    note: '',
+    date: format(new Date(), 'yyyy-MM-dd'),
+  });
+
+  const [isTopUpOpen, setIsTopUpOpen] = useState(false);
+  const [topUpTargetId, setTopUpTargetId] = useState<string>('');
+  const [topUpForm, setTopUpForm] = useState({
+    sourceWalletId: '',
     amount: '',
     note: '',
     date: format(new Date(), 'yyyy-MM-dd'),
@@ -82,24 +91,50 @@ export const WalletPage: React.FC = () => {
     toast.success(t.wallet.toast.walletDeleted(name));
   };
 
-  const handleAddTx = (e: React.FormEvent) => {
+  const handleAddTx = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!txForm.amount || parseFloat(txForm.amount) <= 0) {
       toast.error(t.wallet.toast.invalidAmount);
       return;
     }
 
-    addWalletTransaction(selectedWalletId, {
-      type: txForm.type,
-      amount: parseFloat(txForm.amount),
-      note: txForm.note,
-      date: txForm.date,
-    });
+    try {
+      await addWalletTransaction(selectedWalletId, {
+        type: txForm.type,
+        amount: parseFloat(txForm.amount),
+        note: txForm.note,
+        date: txForm.date,
+      });
+      setIsTxOpen(false);
+      toast.success(t.wallet.toast.expenseSuccess);
+    } catch (err: any) {
+      const msg = err?.message?.includes('Insufficient') ? t.wallet.toast.insufficientBalance : err?.message;
+      toast.error(msg || t.wallet.toast.invalidAmount);
+    }
+  };
 
-    setIsTxOpen(false);
-    toast.success(
-      txForm.type === 'topup' ? t.wallet.toast.topupSuccess : t.wallet.toast.expenseSuccess
-    );
+  // Top Up = transfer dari dompet lain (mis. BANK → e-wallet). Bukan "uang dari langit".
+  const handleTopUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = parseFloat(topUpForm.amount);
+    if (!amount || amount <= 0) { toast.error(t.wallet.toast.invalidAmount); return; }
+    if (!topUpForm.sourceWalletId) { toast.error(t.wallet.toast.fillAllFields); return; }
+
+    try {
+      await transferBetweenWallets({
+        fromWalletId: topUpForm.sourceWalletId,
+        toWalletId: topUpTargetId,
+        amount,
+        note: topUpForm.note || undefined,
+        date: topUpForm.date,
+      });
+      setIsTopUpOpen(false);
+      setTopUpForm({ sourceWalletId: '', amount: '', note: '', date: format(new Date(), 'yyyy-MM-dd') });
+      toast.success(t.wallet.toast.topupSuccess);
+    } catch (err: any) {
+      const msg = err?.message?.includes('Insufficient') ? t.wallet.toast.insufficientBalance : err?.message;
+      toast.error(msg || t.wallet.toast.invalidAmount);
+    }
   };
 
   const handleTransfer = async (e: React.FormEvent) => {
@@ -141,6 +176,7 @@ export const WalletPage: React.FC = () => {
   };
 
   const selectedWallet = wallets.find((w) => w.id === selectedWalletId);
+  const topUpTarget = wallets.find((w) => w.id === topUpTargetId);
 
   return (
     <PageTransition>
@@ -252,11 +288,11 @@ export const WalletPage: React.FC = () => {
                 const icon = WALLET_ICONS[wallet.walletType];
                 const typeLabel = t.wallet.typeLabels[wallet.walletType];
                 const isExpanded = expandedWallets.has(wallet.id);
-                const totalTopup = wallet.transactions
-                  .filter((tx) => tx.type === 'topup')
+                const totalIn = wallet.transactions
+                  .filter((tx) => tx.type === 'topup' || tx.type === 'transfer_in')
                   .reduce((sum, tx) => sum + tx.amount, 0);
-                const totalExpense = wallet.transactions
-                  .filter((tx) => tx.type === 'expense')
+                const totalOut = wallet.transactions
+                  .filter((tx) => tx.type === 'expense' || tx.type === 'transfer_out' || tx.type === 'wishlist_fund')
                   .reduce((sum, tx) => sum + tx.amount, 0);
 
                 return (
@@ -290,19 +326,26 @@ export const WalletPage: React.FC = () => {
                           <p className="text-xs text-gray-600">{t.wallet.currentBalance}</p>
                           <AmountText
                             amount={wallet.currentBalance}
-                            className="text-xl sm:text-2xl font-bold text-gray-900 mt-1 break-words block"
+                            className={`text-xl sm:text-2xl font-bold mt-1 break-words block ${
+                              wallet.currentBalance < 0 ? 'text-red-600' : 'text-gray-900'
+                            }`}
                           />
+                          {wallet.currentBalance < 0 && (
+                            <span className="inline-block mt-1.5 px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-700 border border-red-200">
+                              {t.wallet.debtRunning}
+                            </span>
+                          )}
                         </div>
 
                         {/* Summary */}
                         <div className="flex items-center gap-4 text-xs">
                           <div className="flex items-center gap-1 text-green-600">
                             <TrendingUp className="w-3 h-3" />
-                            <AmountText amount={totalTopup} prefix="+" />
+                            <AmountText amount={totalIn} prefix="+" />
                           </div>
                           <div className="flex items-center gap-1 text-red-600">
                             <TrendingDown className="w-3 h-3" />
-                            <AmountText amount={totalExpense} prefix="-" />
+                            <AmountText amount={totalOut} prefix="-" />
                           </div>
                         </div>
 
@@ -310,12 +353,13 @@ export const WalletPage: React.FC = () => {
                         <div className="grid grid-cols-3 gap-1.5">
                           <Button
                             size="sm"
-                            className="bg-green-600 hover:bg-green-700 rounded-xl text-xs px-2"
+                            className="bg-green-600 hover:bg-green-700 rounded-xl text-xs px-2 disabled:opacity-50"
                             onClick={() => {
-                              setSelectedWalletId(wallet.id);
-                              setTxForm({ type: 'topup', amount: '', note: '', date: format(new Date(), 'yyyy-MM-dd') });
-                              setIsTxOpen(true);
+                              setTopUpTargetId(wallet.id);
+                              setTopUpForm({ sourceWalletId: '', amount: '', note: '', date: format(new Date(), 'yyyy-MM-dd') });
+                              setIsTopUpOpen(true);
                             }}
+                            disabled={wallets.length < 2}
                           >
                             <Plus className="w-3 h-3 mr-1" />
                             {t.wallet.topUpBtn}
@@ -529,13 +573,85 @@ export const WalletPage: React.FC = () => {
           </DialogContent>
         </Dialog>
 
+        {/* Top Up Dialog — transfer dari dompet lain (bank berkurang, dompet nambah) */}
+        <Dialog open={isTopUpOpen} onOpenChange={setIsTopUpOpen}>
+          <DialogContent className="rounded-2xl">
+            <DialogHeader>
+              <DialogTitle>{t.wallet.topUpBalance}</DialogTitle>
+              {topUpTarget && (
+                <p className="text-sm text-gray-500">
+                  {WALLET_ICONS[topUpTarget.walletType]} {topUpTarget.name}
+                </p>
+              )}
+            </DialogHeader>
+            <form onSubmit={handleTopUp} className="space-y-4">
+              <div>
+                <Label>{t.wallet.topUpFrom}</Label>
+                <Select
+                  value={topUpForm.sourceWalletId}
+                  onValueChange={(value) => setTopUpForm({ ...topUpForm, sourceWalletId: value })}
+                >
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue placeholder={t.wallet.selectSource} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {wallets
+                      .filter((w) => w.id !== topUpTargetId)
+                      .map((w) => (
+                        <SelectItem key={w.id} value={w.id}>
+                          {WALLET_ICONS[w.walletType]} {w.name} — Rp {w.currentBalance.toLocaleString('id-ID')}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>{t.wallet.amount}</Label>
+                <Input
+                  type="number"
+                  placeholder="100000"
+                  value={topUpForm.amount}
+                  onChange={(e) => setTopUpForm({ ...topUpForm, amount: e.target.value })}
+                  className="rounded-xl"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label>{t.wallet.date}</Label>
+                <Input
+                  type="date"
+                  value={topUpForm.date}
+                  onChange={(e) => setTopUpForm({ ...topUpForm, date: e.target.value })}
+                  className="rounded-xl"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label>{t.wallet.note}</Label>
+                <Input
+                  placeholder={t.wallet.notePlaceholder}
+                  value={topUpForm.note}
+                  onChange={(e) => setTopUpForm({ ...topUpForm, note: e.target.value })}
+                  className="rounded-xl"
+                />
+              </div>
+
+              <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 rounded-xl">
+                <Plus className="w-4 h-4 mr-2" />
+                {t.wallet.topUpBtn}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+
         {/* Transaction Dialog */}
         <Dialog open={isTxOpen} onOpenChange={setIsTxOpen}>
           <DialogContent className="rounded-2xl">
             <DialogHeader>
-              <DialogTitle>
-                {txForm.type === 'topup' ? t.wallet.topUpBalance : t.wallet.recordExpense}
-              </DialogTitle>
+              <DialogTitle>{t.wallet.recordExpense}</DialogTitle>
               {selectedWallet && (
                 <p className="text-sm text-gray-500">
                   {WALLET_ICONS[selectedWallet.walletType]} {selectedWallet.name}
@@ -543,28 +659,6 @@ export const WalletPage: React.FC = () => {
               )}
             </DialogHeader>
             <form onSubmit={handleAddTx} className="space-y-4">
-              <div>
-                <Label htmlFor="tx-type">{t.wallet.transactionType}</Label>
-                <Select
-                  value={txForm.type}
-                  onValueChange={(value: 'topup' | 'expense') =>
-                    setTxForm({ ...txForm, type: value })
-                  }
-                >
-                  <SelectTrigger className="rounded-xl">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="topup">
-                      <span className="text-green-600">↑ {t.wallet.topup}</span>
-                    </SelectItem>
-                    <SelectItem value="expense">
-                      <span className="text-red-600">↓ {t.wallet.expense}</span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
               <div>
                 <Label htmlFor="tx-amount">{t.wallet.amount}</Label>
                 <Input
@@ -603,13 +697,9 @@ export const WalletPage: React.FC = () => {
 
               <Button
                 type="submit"
-                className={`w-full rounded-xl ${
-                  txForm.type === 'topup'
-                    ? 'bg-green-600 hover:bg-green-700'
-                    : 'bg-red-600 hover:bg-red-700'
-                }`}
+                className="w-full rounded-xl bg-red-600 hover:bg-red-700"
               >
-                {txForm.type === 'topup' ? t.wallet.topUpBtn : t.wallet.recordExpense}
+                {t.wallet.recordExpense}
               </Button>
             </form>
           </DialogContent>

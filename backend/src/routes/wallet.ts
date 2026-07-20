@@ -116,6 +116,12 @@ router.post('/transactions', async (c) => {
       return c.json({ error: 'Wallet not found' }, 404)
     }
 
+    // Hanya EWALLET yang boleh saldo minus (utang berjalan). CASH & BANK direm.
+    if (type === 'EXPENSE' && wallet.walletType !== 'EWALLET' && Number(wallet.currentBalance) - amount < 0) {
+      await client.query('ROLLBACK')
+      return c.json({ error: 'Insufficient balance' }, 400)
+    }
+
     const { rows: [tx] } = await client.query(
       `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "createdAt", "updatedAt")
        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
@@ -164,7 +170,8 @@ router.post('/transfer', async (c) => {
       await client.query('ROLLBACK')
       return c.json({ error: 'Source wallet not found' }, 404)
     }
-    if (Number(fromWallet.currentBalance) < amount) {
+    // Hanya EWALLET yang boleh saldo minus (utang berjalan). CASH & BANK direm.
+    if (fromWallet.walletType !== 'EWALLET' && Number(fromWallet.currentBalance) < amount) {
       await client.query('ROLLBACK')
       return c.json({ error: 'Insufficient balance' }, 400)
     }
