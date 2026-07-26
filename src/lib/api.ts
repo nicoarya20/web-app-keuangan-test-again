@@ -2,19 +2,40 @@
 // Di prod: selalu relative /api → same-origin, bekerja di domain apapun
 const API_BASE = import.meta.env.VITE_API_URL || '/api'
 
+export interface ApiError extends Error {
+  status?: number
+  duplicate?: boolean
+}
+
+/** Error dari request POST duplikat (idempotency key sudah dipakai). */
+export function isDuplicateError(e: unknown): boolean {
+  return !!(e as ApiError)?.duplicate
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' },
     credentials: 'include', // Include cookies for auth (same-origin and cross-origin)
     ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options?.headers as Record<string, string> | undefined),
+    },
   })
 
   if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(error.error || `HTTP ${res.status}`)
+    const body = await res.json().catch(() => ({ error: res.statusText }))
+    const err = new Error(body.error || `HTTP ${res.status}`) as ApiError
+    err.status = res.status
+    err.duplicate = res.status === 409 && !!body.duplicate
+    throw err
   }
 
   return res.json() as Promise<T>
+}
+
+/** Header idempotency opsional untuk operasi create/mutasi uang. */
+function idem(key?: string): { headers?: Record<string, string> } {
+  return key ? { headers: { 'Idempotency-Key': key } } : {}
 }
 
 // ============================================================
@@ -195,8 +216,8 @@ export const api = {
     list: () => request<Income[]>('/incomes'),
     monthlySummary: () =>
       request<IncomeMonthlySummary>('/incomes/monthly-summary'),
-    create: (data: { amount: number; category: string; date: string; recurring: boolean; note?: string; walletId?: string }) =>
-      request<Income>('/incomes', { method: 'POST', body: JSON.stringify(data) }),
+    create: (data: { amount: number; category: string; date: string; recurring: boolean; note?: string; walletId?: string }, idempotencyKey?: string) =>
+      request<Income>('/incomes', { method: 'POST', body: JSON.stringify(data), ...idem(idempotencyKey) }),
     update: (id: string, data: Partial<Income>) =>
       request<Income>(`/incomes/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) =>
@@ -208,8 +229,8 @@ export const api = {
     list: () => request<Expense[]>('/expenses'),
     monthlySummary: () =>
       request<ExpenseMonthlySummary>('/expenses/monthly-summary'),
-    create: (data: { amount: number; category: string; date: string; note?: string; tags?: string[]; walletId?: string }) =>
-      request<Expense>('/expenses', { method: 'POST', body: JSON.stringify(data) }),
+    create: (data: { amount: number; category: string; date: string; note?: string; tags?: string[]; walletId?: string }, idempotencyKey?: string) =>
+      request<Expense>('/expenses', { method: 'POST', body: JSON.stringify(data), ...idem(idempotencyKey) }),
     update: (id: string, data: Partial<Expense>) =>
       request<Expense>(`/expenses/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) =>
@@ -221,8 +242,8 @@ export const api = {
     list: () => request<Wallet[]>('/wallets'),
     totalBalance: () =>
       request<WalletTotalBalance>('/wallets/total-balance'),
-    create: (data: { name: string; walletType: 'CASH' | 'EWALLET' | 'BANK'; initialBalance: number }) =>
-      request<Wallet>('/wallets', { method: 'POST', body: JSON.stringify(data) }),
+    create: (data: { name: string; walletType: 'CASH' | 'EWALLET' | 'BANK'; initialBalance: number }, idempotencyKey?: string) =>
+      request<Wallet>('/wallets', { method: 'POST', body: JSON.stringify(data), ...idem(idempotencyKey) }),
     update: (id: string, data: Partial<Wallet>) =>
       request<Wallet>(`/wallets/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) =>
@@ -231,17 +252,19 @@ export const api = {
 
   // --- WALLET TRANSACTION ---
   walletTx: {
-    create: (data: { walletId: string; type: 'TOPUP' | 'EXPENSE'; amount: number; note?: string; date: string }) =>
+    create: (data: { walletId: string; type: 'TOPUP' | 'EXPENSE'; amount: number; note?: string; date: string }, idempotencyKey?: string) =>
       request<{ transaction: WalletTransaction; wallet: Wallet }>('/wallets/transactions', {
         method: 'POST',
         body: JSON.stringify(data),
+        ...idem(idempotencyKey),
       }),
     delete: (id: string) =>
       request<{ success: boolean }>(`/wallets/transactions/${id}`, { method: 'DELETE' }),
-    transfer: (data: { fromWalletId: string; toWalletId: string; amount: number; note?: string; date: string }) =>
+    transfer: (data: { fromWalletId: string; toWalletId: string; amount: number; note?: string; date: string }, idempotencyKey?: string) =>
       request<{ fromWallet: Wallet; toWallet: Wallet }>('/wallets/transfer', {
         method: 'POST',
         body: JSON.stringify(data),
+        ...idem(idempotencyKey),
       }),
   },
 
@@ -250,8 +273,8 @@ export const api = {
     list: () => request<Saving[]>('/savings'),
     summary: () =>
       request<SavingsSummary>('/savings/summary'),
-    create: (data: { amount: number; goalName: string; date: string; type: 'SAVING' | 'INVESTMENT' }) =>
-      request<Saving>('/savings', { method: 'POST', body: JSON.stringify(data) }),
+    create: (data: { amount: number; goalName: string; date: string; type: 'SAVING' | 'INVESTMENT' }, idempotencyKey?: string) =>
+      request<Saving>('/savings', { method: 'POST', body: JSON.stringify(data), ...idem(idempotencyKey) }),
     delete: (id: string) =>
       request<{ success: boolean }>(`/savings/${id}`, { method: 'DELETE' }),
   },
@@ -261,8 +284,8 @@ export const api = {
     list: () => request<Wishlist[]>('/wishlists'),
     summary: () =>
       request<WishlistSummary>('/wishlists/summary'),
-    create: (data: { name: string; targetPrice: number; currentProgress: number; priority: 'LOW' | 'MEDIUM' | 'HIGH'; note?: string; walletId?: string }) =>
-      request<Wishlist>('/wishlists', { method: 'POST', body: JSON.stringify(data) }),
+    create: (data: { name: string; targetPrice: number; currentProgress: number; priority: 'LOW' | 'MEDIUM' | 'HIGH'; note?: string; walletId?: string }, idempotencyKey?: string) =>
+      request<Wishlist>('/wishlists', { method: 'POST', body: JSON.stringify(data), ...idem(idempotencyKey) }),
     update: (id: string, data: Partial<Wishlist>) =>
       request<Wishlist>(`/wishlists/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     // Tambah tabungan (delta) dari wallet — currentProgress hanya boleh naik lewat sini

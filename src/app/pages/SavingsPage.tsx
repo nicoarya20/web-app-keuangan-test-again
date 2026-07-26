@@ -12,11 +12,14 @@ import { toast } from 'sonner';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useT } from '../context/LanguageContext';
 import { AmountText } from '../components/AmountText';
+import { useIdempotencyKey } from '../../lib/useIdempotencyKey';
 
 export const SavingsPage: React.FC = () => {
   const { savings, addSaving, deleteSaving } = useFinance();
   const t = useT();
   const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const idem = useIdempotencyKey();
   const [formData, setFormData] = useState({
     amount: '',
     goalName: '',
@@ -24,8 +27,10 @@ export const SavingsPage: React.FC = () => {
     type: 'saving' as 'saving' | 'investment',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isSubmitting) return;
 
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
       toast.error(t.savings.toast.invalidAmount);
@@ -37,21 +42,29 @@ export const SavingsPage: React.FC = () => {
       return;
     }
 
-    addSaving({
-      amount: parseFloat(formData.amount),
-      goalName: formData.goalName,
-      date: formData.date,
-      type: formData.type,
-    });
+    setIsSubmitting(true);
+    try {
+      await addSaving({
+        amount: parseFloat(formData.amount),
+        goalName: formData.goalName,
+        date: formData.date,
+        type: formData.type,
+      }, idem.getKey());
+      idem.reset();
 
-    setFormData({
-      amount: '',
-      goalName: '',
-      date: format(new Date(), 'yyyy-MM-dd'),
-      type: 'saving',
-    });
-    setIsOpen(false);
-    toast.success(t.savings.toast.added);
+      setFormData({
+        amount: '',
+        goalName: '',
+        date: format(new Date(), 'yyyy-MM-dd'),
+        type: 'saving',
+      });
+      setIsOpen(false);
+      toast.success(t.savings.toast.added);
+    } catch {
+      toast.error('Gagal menyimpan. Coba lagi.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -162,8 +175,8 @@ export const SavingsPage: React.FC = () => {
                 />
               </div>
 
-              <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700 rounded-xl">
-                {t.savings.addSaving}
+              <Button type="submit" disabled={isSubmitting} className="w-full bg-purple-600 hover:bg-purple-700 rounded-xl">
+                {isSubmitting ? 'Menyimpan...' : t.savings.addSaving}
               </Button>
             </form>
           </DialogContent>

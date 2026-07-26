@@ -13,6 +13,7 @@ import { Progress } from '../components/ui/progress';
 import { useT } from '../context/LanguageContext';
 import { AmountText } from '../components/AmountText';
 import { useBalanceVisibility } from '../context/BalanceVisibilityContext';
+import { useIdempotencyKey } from '../../lib/useIdempotencyKey';
 
 const EXPENSE_CATEGORIES = [
   'Food & Dining',
@@ -44,9 +45,12 @@ export const ExpensesPage: React.FC = () => {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const idem = useIdempotencyKey();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isSubmitting) return;
 
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
       toast.error(t.expenses.toast.invalidAmount);
@@ -62,7 +66,8 @@ export const ExpensesPage: React.FC = () => {
         note: formData.note,
         tags: formData.tags ? formData.tags.split(',').map((tag) => tag.trim()) : [],
         walletId: formData.walletId || null,
-      });
+      }, idem.getKey());
+      idem.reset();
 
       setFormData({
         amount: '',

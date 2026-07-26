@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { randomUUID } from 'crypto'
 import { db } from '../lib/db'
+import { withIdempotency } from '../lib/idempotency'
 import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
@@ -46,8 +47,9 @@ router.get('/monthly-summary', async (c) => {
 })
 
 router.post('/', async (c) => {
-  const body = await c.req.json()
   const user = c.get('user')
+  return withIdempotency(c, user.id, async () => {
+  const body = await c.req.json()
   const id = randomUUID()
   const date = body.date.includes('T') ? new Date(body.date) : new Date(body.date + 'T00:00:00.000Z')
 
@@ -100,6 +102,7 @@ router.post('/', async (c) => {
     [id, user.id, body.amount, body.category, date, body.recurring ?? false, body.note ?? null]
   )
   return c.json(rows[0], 201)
+  })
 })
 
 router.patch('/:id', async (c) => {

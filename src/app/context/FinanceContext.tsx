@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react'
 import { useSession } from '../../lib/auth'
-import { api } from '../../lib/api'
+import { api, isDuplicateError } from '../../lib/api'
 import type {
   Income as ApiIncome,
   Expense as ApiExpense,
@@ -82,12 +82,12 @@ interface FinanceContextType {
   savings: Saving[]
   wallets: Wallet[]
   categoryBudgets: Record<string, number>
-  addIncome: (income: Omit<Income, 'id'>) => Promise<void>
-  addExpense: (expense: Omit<Expense, 'id'>) => Promise<void>
-  addWishlistItem: (item: Omit<WishlistItem, 'id'>) => Promise<void>
-  addSaving: (saving: Omit<Saving, 'id'>) => Promise<void>
-  addWallet: (wallet: Omit<Wallet, 'id' | 'currentBalance' | 'transactions'>) => Promise<void>
-  addWalletTransaction: (walletId: string, tx: Omit<WalletTransaction, 'id'>) => Promise<void>
+  addIncome: (income: Omit<Income, 'id'>, idempotencyKey?: string) => Promise<void>
+  addExpense: (expense: Omit<Expense, 'id'>, idempotencyKey?: string) => Promise<void>
+  addWishlistItem: (item: Omit<WishlistItem, 'id'>, idempotencyKey?: string) => Promise<void>
+  addSaving: (saving: Omit<Saving, 'id'>, idempotencyKey?: string) => Promise<void>
+  addWallet: (wallet: Omit<Wallet, 'id' | 'currentBalance' | 'transactions'>, idempotencyKey?: string) => Promise<void>
+  addWalletTransaction: (walletId: string, tx: Omit<WalletTransaction, 'id'>, idempotencyKey?: string) => Promise<void>
   updateWishlistItem: (id: string, updates: Partial<WishlistItem>) => Promise<void>
   fundWishlistItem: (id: string, amount: number, walletId?: string, date?: string) => Promise<void>
   completeWishlistItem: (id: string) => Promise<void>
@@ -97,7 +97,7 @@ interface FinanceContextType {
   deleteSaving: (id: string) => Promise<void>
   deleteWallet: (id: string) => Promise<void>
   deleteWalletTransaction: (walletId: string, txId: string) => Promise<void>
-  transferBetweenWallets: (data: { fromWalletId: string; toWalletId: string; amount: number; note?: string; date: string }) => Promise<void>
+  transferBetweenWallets: (data: { fromWalletId: string; toWalletId: string; amount: number; note?: string; date: string }, idempotencyKey?: string) => Promise<void>
   setCategoryBudget: (category: string, budget: number) => Promise<void>
   loading: boolean
   error: string | null
@@ -250,95 +250,154 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
 
   // CRUD Operations
   const addIncome = useCallback(
-    async (income: Omit<Income, 'id'>) => {
-      const created = await api.income.create({
-        amount: income.amount,
-        category: income.category,
-        date: income.date,
-        recurring: income.recurring,
-        note: income.note,
-        walletId: income.walletId ?? undefined,
-      })
-      setIncomes((prev) => [mapIncome(created), ...prev])
-      if (income.walletId) {
-        const walletsRes = await api.wallet.list()
-        setWallets(walletsRes.map(mapWallet))
+    async (income: Omit<Income, 'id'>, idempotencyKey?: string) => {
+      try {
+        const created = await api.income.create({
+          amount: income.amount,
+          category: income.category,
+          date: income.date,
+          recurring: income.recurring,
+          note: income.note,
+          walletId: income.walletId ?? undefined,
+        }, idempotencyKey)
+        setIncomes((prev) => [mapIncome(created), ...prev])
+        if (income.walletId) {
+          const walletsRes = await api.wallet.list()
+          setWallets(walletsRes.map(mapWallet))
+        }
+      } catch (e) {
+        if (isDuplicateError(e)) {
+          // Request duplikat: data sudah tersimpan sebelumnya → sinkronkan ulang dari server
+          const [incomesRes, walletsRes] = await Promise.all([api.income.list(), api.wallet.list()])
+          setIncomes(incomesRes.map(mapIncome))
+          setWallets(walletsRes.map(mapWallet))
+          return
+        }
+        throw e
       }
     },
     []
   )
 
   const addExpense = useCallback(
-    async (expense: Omit<Expense, 'id'>) => {
-      const created = await api.expense.create({
-        amount: expense.amount,
-        category: expense.category,
-        date: expense.date,
-        note: expense.note,
-        tags: expense.tags,
-        walletId: expense.walletId ?? undefined,
-      })
-      setExpenses((prev) => [mapExpense(created), ...prev])
-      if (expense.walletId) {
-        const walletsRes = await api.wallet.list()
-        setWallets(walletsRes.map(mapWallet))
+    async (expense: Omit<Expense, 'id'>, idempotencyKey?: string) => {
+      try {
+        const created = await api.expense.create({
+          amount: expense.amount,
+          category: expense.category,
+          date: expense.date,
+          note: expense.note,
+          tags: expense.tags,
+          walletId: expense.walletId ?? undefined,
+        }, idempotencyKey)
+        setExpenses((prev) => [mapExpense(created), ...prev])
+        if (expense.walletId) {
+          const walletsRes = await api.wallet.list()
+          setWallets(walletsRes.map(mapWallet))
+        }
+      } catch (e) {
+        if (isDuplicateError(e)) {
+          // Request duplikat: data sudah tersimpan sebelumnya → sinkronkan ulang dari server
+          const [expensesRes, walletsRes] = await Promise.all([api.expense.list(), api.wallet.list()])
+          setExpenses(expensesRes.map(mapExpense))
+          setWallets(walletsRes.map(mapWallet))
+          return
+        }
+        throw e
       }
     },
     []
   )
 
   const addWishlistItem = useCallback(
-    async (item: Omit<WishlistItem, 'id'>) => {
-      const created = await api.wishlist.create({
-        name: item.name,
-        targetPrice: item.targetPrice,
-        currentProgress: item.currentProgress,
-        priority: item.priority.toUpperCase() as 'LOW' | 'MEDIUM' | 'HIGH',
-        note: item.note,
-        walletId: item.walletId ?? undefined,
-      })
-      setWishlist((prev) => [mapWishlist(created), ...prev])
+    async (item: Omit<WishlistItem, 'id'>, idempotencyKey?: string) => {
+      try {
+        const created = await api.wishlist.create({
+          name: item.name,
+          targetPrice: item.targetPrice,
+          currentProgress: item.currentProgress,
+          priority: item.priority.toUpperCase() as 'LOW' | 'MEDIUM' | 'HIGH',
+          note: item.note,
+          walletId: item.walletId ?? undefined,
+        }, idempotencyKey)
+        setWishlist((prev) => [mapWishlist(created), ...prev])
+      } catch (e) {
+        if (isDuplicateError(e)) {
+          const wishlistRes = await api.wishlist.list()
+          setWishlist(wishlistRes.map(mapWishlist))
+          return
+        }
+        throw e
+      }
     },
     []
   )
 
   const addSaving = useCallback(
-    async (saving: Omit<Saving, 'id'>) => {
-      const created = await api.saving.create({
-        amount: saving.amount,
-        goalName: saving.goalName,
-        date: saving.date,
-        type: saving.type.toUpperCase() as 'SAVING' | 'INVESTMENT',
-      })
-      setSavings((prev) => [mapSaving(created), ...prev])
+    async (saving: Omit<Saving, 'id'>, idempotencyKey?: string) => {
+      try {
+        const created = await api.saving.create({
+          amount: saving.amount,
+          goalName: saving.goalName,
+          date: saving.date,
+          type: saving.type.toUpperCase() as 'SAVING' | 'INVESTMENT',
+        }, idempotencyKey)
+        setSavings((prev) => [mapSaving(created), ...prev])
+      } catch (e) {
+        if (isDuplicateError(e)) {
+          const savingsRes = await api.saving.list()
+          setSavings(savingsRes.map(mapSaving))
+          return
+        }
+        throw e
+      }
     },
     []
   )
 
   const addWallet = useCallback(
-    async (wallet: Omit<Wallet, 'id' | 'currentBalance' | 'transactions'>) => {
-      const created = await api.wallet.create({
-        name: wallet.name,
-        walletType: wallet.walletType.toUpperCase() as 'CASH' | 'EWALLET' | 'BANK',
-        initialBalance: wallet.initialBalance,
-      })
-      setWallets((prev) => [...prev, mapWallet(created)])
+    async (wallet: Omit<Wallet, 'id' | 'currentBalance' | 'transactions'>, idempotencyKey?: string) => {
+      try {
+        const created = await api.wallet.create({
+          name: wallet.name,
+          walletType: wallet.walletType.toUpperCase() as 'CASH' | 'EWALLET' | 'BANK',
+          initialBalance: wallet.initialBalance,
+        }, idempotencyKey)
+        setWallets((prev) => [...prev, mapWallet(created)])
+      } catch (e) {
+        if (isDuplicateError(e)) {
+          const walletsRes = await api.wallet.list()
+          setWallets(walletsRes.map(mapWallet))
+          return
+        }
+        throw e
+      }
     },
     []
   )
 
   const addWalletTransaction = useCallback(
-    async (walletId: string, tx: Omit<WalletTransaction, 'id'>) => {
-      const result = await api.walletTx.create({
-        walletId,
-        type: tx.type.toUpperCase() as 'TOPUP' | 'EXPENSE',
-        amount: tx.amount,
-        note: tx.note,
-        date: tx.date,
-      })
-      setWallets((prev) =>
-        prev.map((w) => (w.id === walletId ? mapWallet(result.wallet) : w))
-      )
+    async (walletId: string, tx: Omit<WalletTransaction, 'id'>, idempotencyKey?: string) => {
+      try {
+        const result = await api.walletTx.create({
+          walletId,
+          type: tx.type.toUpperCase() as 'TOPUP' | 'EXPENSE',
+          amount: tx.amount,
+          note: tx.note,
+          date: tx.date,
+        }, idempotencyKey)
+        setWallets((prev) =>
+          prev.map((w) => (w.id === walletId ? mapWallet(result.wallet) : w))
+        )
+      } catch (e) {
+        if (isDuplicateError(e)) {
+          // Duplikat: mutasi sudah tercatat → ambil ulang state wallet dari server
+          const walletsRes = await api.wallet.list()
+          setWallets(walletsRes.map(mapWallet))
+          return
+        }
+        throw e
+      }
     },
     []
   )
@@ -451,8 +510,13 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
   )
 
   const transferBetweenWallets = useCallback(
-    async (data: { fromWalletId: string; toWalletId: string; amount: number; note?: string; date: string }) => {
-      await api.walletTx.transfer(data)
+    async (data: { fromWalletId: string; toWalletId: string; amount: number; note?: string; date: string }, idempotencyKey?: string) => {
+      try {
+        await api.walletTx.transfer(data, idempotencyKey)
+      } catch (e) {
+        // Duplikat: transfer sudah diproses → lanjut refresh saldo, jangan lempar error
+        if (!isDuplicateError(e)) throw e
+      }
       if (!userId) return
       const walletsRes = await api.wallet.list(userId)
       setWallets(walletsRes.map(mapWallet))
