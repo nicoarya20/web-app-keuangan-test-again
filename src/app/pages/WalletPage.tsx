@@ -13,6 +13,7 @@ import { PageTransition } from '../components/PageTransition';
 import { useT } from '../context/LanguageContext';
 import { AmountText } from '../components/AmountText';
 import { useBalanceVisibility } from '../context/BalanceVisibilityContext';
+import { useIdempotencyKey } from '../../lib/useIdempotencyKey';
 
 const WALLET_TYPES = ['cash', 'ewallet', 'bank'] as const;
 const WALLET_ICONS: Record<string, string> = { cash: '💰', ewallet: '📱', bank: '🏦' };
@@ -61,10 +62,21 @@ export const WalletPage: React.FC = () => {
     date: format(new Date(), 'yyyy-MM-dd'),
   });
 
+  // Guard anti double-submit per aksi (dompet baru / transaksi / top up / transfer)
+  const [submittingWallet, setSubmittingWallet] = useState(false);
+  const [submittingTx, setSubmittingTx] = useState(false);
+  const [submittingTopUp, setSubmittingTopUp] = useState(false);
+  const [submittingTransfer, setSubmittingTransfer] = useState(false);
+  const walletIdem = useIdempotencyKey();
+  const txIdem = useIdempotencyKey();
+  const topUpIdem = useIdempotencyKey();
+  const transferIdem = useIdempotencyKey();
+
   const totalBalance = wallets.reduce((sum, w) => sum + w.currentBalance, 0);
 
-  const handleAddWallet = (e: React.FormEvent) => {
+  const handleAddWallet = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingWallet) return;
     if (!walletForm.name || !walletForm.initialBalance) {
       toast.error(t.wallet.toast.fillAllFields);
       return;
@@ -75,15 +87,24 @@ export const WalletPage: React.FC = () => {
       return;
     }
 
-    addWallet({
-      name: walletForm.name,
-      walletType: walletForm.walletType,
-      initialBalance: amount,
-    });
+    setSubmittingWallet(true);
+    try {
+      await addWallet({
+        name: walletForm.name,
+        walletType: walletForm.walletType,
+        initialBalance: amount,
+      }, walletIdem.getKey());
+      walletIdem.reset();
 
-    setWalletForm({ name: '', walletType: 'cash', initialBalance: '' });
-    setIsWalletOpen(false);
-    toast.success(t.wallet.toast.walletAdded(walletForm.name));
+      const addedName = walletForm.name;
+      setWalletForm({ name: '', walletType: 'cash', initialBalance: '' });
+      setIsWalletOpen(false);
+      toast.success(t.wallet.toast.walletAdded(addedName));
+    } catch {
+      toast.error('Gagal menambah dompet. Coba lagi.');
+    } finally {
+      setSubmittingWallet(false);
+    }
   };
 
   const handleDeleteWallet = (id: string, name: string) => {
@@ -93,23 +114,28 @@ export const WalletPage: React.FC = () => {
 
   const handleAddTx = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingTx) return;
     if (!txForm.amount || parseFloat(txForm.amount) <= 0) {
       toast.error(t.wallet.toast.invalidAmount);
       return;
     }
 
+    setSubmittingTx(true);
     try {
       await addWalletTransaction(selectedWalletId, {
         type: txForm.type,
         amount: parseFloat(txForm.amount),
         note: txForm.note,
         date: txForm.date,
-      });
+      }, txIdem.getKey());
+      txIdem.reset();
       setIsTxOpen(false);
       toast.success(t.wallet.toast.expenseSuccess);
     } catch (err: any) {
       const msg = err?.message?.includes('Insufficient') ? t.wallet.toast.insufficientBalance : err?.message;
       toast.error(msg || t.wallet.toast.invalidAmount);
+    } finally {
+      setSubmittingTx(false);
     }
   };
 
@@ -117,9 +143,11 @@ export const WalletPage: React.FC = () => {
   const handleTopUp = async (e: React.FormEvent) => {
     e.preventDefault();
     const amount = parseFloat(topUpForm.amount);
+    if (submittingTopUp) return;
     if (!amount || amount <= 0) { toast.error(t.wallet.toast.invalidAmount); return; }
     if (!topUpForm.sourceWalletId) { toast.error(t.wallet.toast.fillAllFields); return; }
 
+    setSubmittingTopUp(true);
     try {
       await transferBetweenWallets({
         fromWalletId: topUpForm.sourceWalletId,
@@ -127,23 +155,28 @@ export const WalletPage: React.FC = () => {
         amount,
         note: topUpForm.note || undefined,
         date: topUpForm.date,
-      });
+      }, topUpIdem.getKey());
+      topUpIdem.reset();
       setIsTopUpOpen(false);
       setTopUpForm({ sourceWalletId: '', amount: '', note: '', date: format(new Date(), 'yyyy-MM-dd') });
       toast.success(t.wallet.toast.topupSuccess);
     } catch (err: any) {
       const msg = err?.message?.includes('Insufficient') ? t.wallet.toast.insufficientBalance : err?.message;
       toast.error(msg || t.wallet.toast.invalidAmount);
+    } finally {
+      setSubmittingTopUp(false);
     }
   };
 
   const handleTransfer = async (e: React.FormEvent) => {
     e.preventDefault();
     const amount = parseFloat(transferForm.amount);
+    if (submittingTransfer) return;
     if (!amount || amount <= 0) { toast.error(t.wallet.toast.invalidAmount); return; }
     if (!transferForm.toWalletId) { toast.error(t.wallet.toast.fillAllFields); return; }
     if (transferForm.fromWalletId === transferForm.toWalletId) { toast.error(t.wallet.toast.fillAllFields); return; }
 
+    setSubmittingTransfer(true);
     try {
       await transferBetweenWallets({
         fromWalletId: transferForm.fromWalletId,
@@ -151,13 +184,16 @@ export const WalletPage: React.FC = () => {
         amount,
         note: transferForm.note || undefined,
         date: transferForm.date,
-      });
+      }, transferIdem.getKey());
+      transferIdem.reset();
       setIsTransferOpen(false);
       setTransferForm({ fromWalletId: '', toWalletId: '', amount: '', note: '', date: format(new Date(), 'yyyy-MM-dd') });
       toast.success(t.wallet.toast.transferSuccess);
     } catch (err: any) {
       const msg = err?.message?.includes('Insufficient') ? t.wallet.toast.insufficientBalance : err?.message;
       toast.error(msg || t.wallet.toast.invalidAmount);
+    } finally {
+      setSubmittingTransfer(false);
     }
   };
 
@@ -245,8 +281,8 @@ export const WalletPage: React.FC = () => {
                   />
                 </div>
 
-                <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 rounded-xl">
-                  {t.wallet.addWallet}
+                <Button type="submit" disabled={submittingWallet} className="w-full bg-indigo-600 hover:bg-indigo-700 rounded-xl">
+                  {submittingWallet ? 'Menyimpan...' : t.wallet.addWallet}
                 </Button>
               </form>
             </DialogContent>
@@ -565,9 +601,9 @@ export const WalletPage: React.FC = () => {
                 />
               </div>
 
-              <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 rounded-xl">
+              <Button type="submit" disabled={submittingTransfer} className="w-full bg-indigo-600 hover:bg-indigo-700 rounded-xl">
                 <ArrowLeftRight className="w-4 h-4 mr-2" />
-                {t.wallet.transferBtn}
+                {submittingTransfer ? 'Memproses...' : t.wallet.transferBtn}
               </Button>
             </form>
           </DialogContent>
@@ -639,9 +675,9 @@ export const WalletPage: React.FC = () => {
                 />
               </div>
 
-              <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 rounded-xl">
+              <Button type="submit" disabled={submittingTopUp} className="w-full bg-green-600 hover:bg-green-700 rounded-xl">
                 <Plus className="w-4 h-4 mr-2" />
-                {t.wallet.topUpBtn}
+                {submittingTopUp ? 'Memproses...' : t.wallet.topUpBtn}
               </Button>
             </form>
           </DialogContent>
@@ -697,9 +733,10 @@ export const WalletPage: React.FC = () => {
 
               <Button
                 type="submit"
+                disabled={submittingTx}
                 className="w-full rounded-xl bg-red-600 hover:bg-red-700"
               >
-                {t.wallet.recordExpense}
+                {submittingTx ? 'Memproses...' : t.wallet.recordExpense}
               </Button>
             </form>
           </DialogContent>

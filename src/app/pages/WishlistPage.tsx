@@ -12,6 +12,7 @@ import { toast } from 'sonner';
 import { Progress } from '../components/ui/progress';
 import { useT } from '../context/LanguageContext';
 import { AmountText } from '../components/AmountText';
+import { useIdempotencyKey } from '../../lib/useIdempotencyKey';
 
 const WALLET_EMOJI: Record<string, string> = { cash: '💵', ewallet: '📱', bank: '🏦' };
 
@@ -19,6 +20,8 @@ export const WishlistPage: React.FC = () => {
   const { wishlist, wallets, addWishlistItem, fundWishlistItem, completeWishlistItem, cancelWishlistItem } = useFinance();
   const t = useT();
   const [isOpen, setIsOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const idem = useIdempotencyKey();
   const [formData, setFormData] = useState({
     name: '',
     targetPrice: '',
@@ -31,8 +34,10 @@ export const WishlistPage: React.FC = () => {
   const [fundAmount, setFundAmount] = useState<Record<string, string>>({});
   const [fundWallet, setFundWallet] = useState<Record<string, string>>({});
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isSubmitting) return;
 
     if (!formData.name || !formData.targetPrice) {
       toast.error(t.wishlist.toast.requiredFields);
@@ -44,18 +49,26 @@ export const WishlistPage: React.FC = () => {
       return;
     }
 
-    addWishlistItem({
-      name: formData.name,
-      targetPrice: parseFloat(formData.targetPrice),
-      currentProgress: formData.currentProgress ? parseFloat(formData.currentProgress) : 0,
-      priority: formData.priority,
-      note: formData.note,
-      walletId: formData.walletId !== 'none' ? formData.walletId : undefined,
-    });
+    setIsSubmitting(true);
+    try {
+      await addWishlistItem({
+        name: formData.name,
+        targetPrice: parseFloat(formData.targetPrice),
+        currentProgress: formData.currentProgress ? parseFloat(formData.currentProgress) : 0,
+        priority: formData.priority,
+        note: formData.note,
+        walletId: formData.walletId !== 'none' ? formData.walletId : undefined,
+      }, idem.getKey());
+      idem.reset();
 
-    setFormData({ name: '', targetPrice: '', currentProgress: '', priority: 'medium', note: '', walletId: 'none' });
-    setIsOpen(false);
-    toast.success(t.wishlist.toast.added);
+      setFormData({ name: '', targetPrice: '', currentProgress: '', priority: 'medium', note: '', walletId: 'none' });
+      setIsOpen(false);
+      toast.success(t.wishlist.toast.added);
+    } catch {
+      toast.error('Gagal menyimpan. Coba lagi.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleFund = async (itemId: string, defaultWalletId?: string | null) => {
@@ -220,8 +233,8 @@ export const WishlistPage: React.FC = () => {
                 />
               </div>
 
-              <Button type="submit" className="w-full bg-pink-600 hover:bg-pink-700 rounded-xl">
-                {t.wishlist.addToWishlist}
+              <Button type="submit" disabled={isSubmitting} className="w-full bg-pink-600 hover:bg-pink-700 rounded-xl">
+                {isSubmitting ? 'Menyimpan...' : t.wishlist.addToWishlist}
               </Button>
             </form>
           </DialogContent>

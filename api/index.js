@@ -53128,6 +53128,54 @@ var user_default = router3;
 // src/server/routes/income.ts
 init_db();
 import { randomUUID as randomUUID2 } from "crypto";
+
+// src/server/lib/idempotency.ts
+init_db();
+var ensured = null;
+function ensureTable() {
+  if (!ensured) {
+    ensured = db.query(
+      `CREATE TABLE IF NOT EXISTS idempotency_keys (
+           key TEXT PRIMARY KEY,
+           "userId" TEXT NOT NULL,
+           "createdAt" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+         )`
+    ).then(() => void 0).catch((e) => {
+      ensured = null;
+      throw e;
+    });
+  }
+  return ensured;
+}
+async function claimIdempotencyKey(userId, key) {
+  await ensureTable();
+  const { rowCount } = await db.query(
+    `INSERT INTO idempotency_keys (key, "userId") VALUES ($1, $2)
+     ON CONFLICT (key) DO NOTHING`,
+    [key, userId]
+  );
+  return rowCount === 1;
+}
+async function releaseIdempotencyKey(key) {
+  await db.query(`DELETE FROM idempotency_keys WHERE key = $1`, [key]);
+}
+async function withIdempotency(c, userId, fn) {
+  const key = c.req.header("Idempotency-Key");
+  if (!key) return fn();
+  if (!await claimIdempotencyKey(userId, key)) {
+    return c.json({ error: "Permintaan duplikat sudah diproses.", duplicate: true }, 409);
+  }
+  try {
+    const res = await fn();
+    if (res.status < 200 || res.status >= 300) await releaseIdempotencyKey(key);
+    return res;
+  } catch (e) {
+    await releaseIdempotencyKey(key);
+    throw e;
+  }
+}
+
+// src/server/routes/income.ts
 var router4 = new Hono2();
 router4.use("*", authMiddleware);
 router4.get("/", async (c) => {
@@ -53166,53 +53214,55 @@ router4.get("/monthly-summary", async (c) => {
   });
 });
 router4.post("/", async (c) => {
-  const body = await c.req.json();
   const user = c.get("user");
-  const id = randomUUID2();
-  const date4 = body.date.includes("T") ? new Date(body.date) : /* @__PURE__ */ new Date(body.date + "T00:00:00.000Z");
-  if (body.walletId) {
-    const client = await db.connect();
-    try {
-      await client.query("BEGIN");
-      const { rows: [wallet] } = await client.query(
-        `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
-        [body.walletId, user.id]
-      );
-      if (!wallet) {
-        await client.query("ROLLBACK");
-        return c.json({ error: "Wallet not found" }, 404);
-      }
-      const { rows: rows2 } = await client.query(
-        `INSERT INTO incomes (id, "userId", amount, category, date, recurring, note, "walletId", "createdAt", "updatedAt")
+  return withIdempotency(c, user.id, async () => {
+    const body = await c.req.json();
+    const id = randomUUID2();
+    const date4 = body.date.includes("T") ? new Date(body.date) : /* @__PURE__ */ new Date(body.date + "T00:00:00.000Z");
+    if (body.walletId) {
+      const client = await db.connect();
+      try {
+        await client.query("BEGIN");
+        const { rows: [wallet] } = await client.query(
+          `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+          [body.walletId, user.id]
+        );
+        if (!wallet) {
+          await client.query("ROLLBACK");
+          return c.json({ error: "Wallet not found" }, 404);
+        }
+        const { rows: rows2 } = await client.query(
+          `INSERT INTO incomes (id, "userId", amount, category, date, recurring, note, "walletId", "createdAt", "updatedAt")
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
          RETURNING *`,
-        [id, user.id, body.amount, body.category, date4, body.recurring ?? false, body.note ?? null, body.walletId]
-      );
-      await client.query(
-        `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "referenceId", "createdAt", "updatedAt")
+          [id, user.id, body.amount, body.category, date4, body.recurring ?? false, body.note ?? null, body.walletId]
+        );
+        await client.query(
+          `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "referenceId", "createdAt", "updatedAt")
          VALUES ($1, $2, 'TOPUP', $3, $4, $5, $6, NOW(), NOW())`,
-        [randomUUID2(), body.walletId, body.amount, body.note ?? null, date4, id]
-      );
-      await client.query(
-        `UPDATE wallets SET "currentBalance" = "currentBalance" + $1, "updatedAt" = NOW() WHERE id = $2`,
-        [body.amount, body.walletId]
-      );
-      await client.query("COMMIT");
-      return c.json(rows2[0], 201);
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
+          [randomUUID2(), body.walletId, body.amount, body.note ?? null, date4, id]
+        );
+        await client.query(
+          `UPDATE wallets SET "currentBalance" = "currentBalance" + $1, "updatedAt" = NOW() WHERE id = $2`,
+          [body.amount, body.walletId]
+        );
+        await client.query("COMMIT");
+        return c.json(rows2[0], 201);
+      } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+      } finally {
+        client.release();
+      }
     }
-  }
-  const { rows } = await db.query(
-    `INSERT INTO incomes (id, "userId", amount, category, date, recurring, note, "createdAt", "updatedAt")
+    const { rows } = await db.query(
+      `INSERT INTO incomes (id, "userId", amount, category, date, recurring, note, "createdAt", "updatedAt")
      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
      RETURNING *`,
-    [id, user.id, body.amount, body.category, date4, body.recurring ?? false, body.note ?? null]
-  );
-  return c.json(rows[0], 201);
+      [id, user.id, body.amount, body.category, date4, body.recurring ?? false, body.note ?? null]
+    );
+    return c.json(rows[0], 201);
+  });
 });
 router4.patch("/:id", async (c) => {
   const body = await c.req.json();
@@ -53326,57 +53376,59 @@ router5.get("/monthly-summary", async (c) => {
   });
 });
 router5.post("/", async (c) => {
-  const body = await c.req.json();
   const user = c.get("user");
-  const id = randomUUID3();
-  const date4 = body.date.includes("T") ? new Date(body.date) : /* @__PURE__ */ new Date(body.date + "T00:00:00.000Z");
-  if (body.walletId) {
-    const client = await db.connect();
-    try {
-      await client.query("BEGIN");
-      const { rows: [wallet] } = await client.query(
-        `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
-        [body.walletId, user.id]
-      );
-      if (!wallet) {
-        await client.query("ROLLBACK");
-        return c.json({ error: "Wallet not found" }, 404);
-      }
-      if (wallet.walletType !== "EWALLET" && Number(wallet.currentBalance) < body.amount) {
-        await client.query("ROLLBACK");
-        return c.json({ error: "Insufficient balance" }, 400);
-      }
-      const { rows: rows2 } = await client.query(
-        `INSERT INTO expenses (id, "userId", amount, category, date, note, tags, "walletId", "createdAt", "updatedAt")
+  return withIdempotency(c, user.id, async () => {
+    const body = await c.req.json();
+    const id = randomUUID3();
+    const date4 = body.date.includes("T") ? new Date(body.date) : /* @__PURE__ */ new Date(body.date + "T00:00:00.000Z");
+    if (body.walletId) {
+      const client = await db.connect();
+      try {
+        await client.query("BEGIN");
+        const { rows: [wallet] } = await client.query(
+          `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+          [body.walletId, user.id]
+        );
+        if (!wallet) {
+          await client.query("ROLLBACK");
+          return c.json({ error: "Wallet not found" }, 404);
+        }
+        if (wallet.walletType !== "EWALLET" && Number(wallet.currentBalance) < body.amount) {
+          await client.query("ROLLBACK");
+          return c.json({ error: "Insufficient balance" }, 400);
+        }
+        const { rows: rows2 } = await client.query(
+          `INSERT INTO expenses (id, "userId", amount, category, date, note, tags, "walletId", "createdAt", "updatedAt")
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
          RETURNING *`,
-        [id, user.id, body.amount, body.category, date4, body.note ?? null, body.tags ?? [], body.walletId]
-      );
-      await client.query(
-        `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "referenceId", "createdAt", "updatedAt")
+          [id, user.id, body.amount, body.category, date4, body.note ?? null, body.tags ?? [], body.walletId]
+        );
+        await client.query(
+          `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "referenceId", "createdAt", "updatedAt")
          VALUES ($1, $2, 'EXPENSE', $3, $4, $5, $6, NOW(), NOW())`,
-        [randomUUID3(), body.walletId, body.amount, body.note ?? null, date4, id]
-      );
-      await client.query(
-        `UPDATE wallets SET "currentBalance" = "currentBalance" - $1, "updatedAt" = NOW() WHERE id = $2`,
-        [body.amount, body.walletId]
-      );
-      await client.query("COMMIT");
-      return c.json(rows2[0], 201);
-    } catch (e) {
-      await client.query("ROLLBACK");
-      throw e;
-    } finally {
-      client.release();
+          [randomUUID3(), body.walletId, body.amount, body.note ?? null, date4, id]
+        );
+        await client.query(
+          `UPDATE wallets SET "currentBalance" = "currentBalance" - $1, "updatedAt" = NOW() WHERE id = $2`,
+          [body.amount, body.walletId]
+        );
+        await client.query("COMMIT");
+        return c.json(rows2[0], 201);
+      } catch (e) {
+        await client.query("ROLLBACK");
+        throw e;
+      } finally {
+        client.release();
+      }
     }
-  }
-  const { rows } = await db.query(
-    `INSERT INTO expenses (id, "userId", amount, category, date, note, tags, "createdAt", "updatedAt")
+    const { rows } = await db.query(
+      `INSERT INTO expenses (id, "userId", amount, category, date, note, tags, "createdAt", "updatedAt")
      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
      RETURNING *`,
-    [id, user.id, body.amount, body.category, date4, body.note ?? null, body.tags ?? []]
-  );
-  return c.json(rows[0], 201);
+      [id, user.id, body.amount, body.category, date4, body.note ?? null, body.tags ?? []]
+    );
+    return c.json(rows[0], 201);
+  });
 });
 router5.patch("/:id", async (c) => {
   const body = await c.req.json();
@@ -53482,17 +53534,19 @@ router6.get("/total-balance", async (c) => {
   });
 });
 router6.post("/", async (c) => {
-  const body = await c.req.json();
   const user = c.get("user");
-  const id = randomUUID4();
-  const initialBalance = body.initialBalance ?? 0;
-  const { rows } = await db.query(
-    `INSERT INTO wallets (id, "userId", name, "walletType", "initialBalance", "currentBalance", "createdAt", "updatedAt")
+  return withIdempotency(c, user.id, async () => {
+    const body = await c.req.json();
+    const id = randomUUID4();
+    const initialBalance = body.initialBalance ?? 0;
+    const { rows } = await db.query(
+      `INSERT INTO wallets (id, "userId", name, "walletType", "initialBalance", "currentBalance", "createdAt", "updatedAt")
      VALUES ($1, $2, $3, $4, $5, $5, NOW(), NOW())
      RETURNING *`,
-    [id, user.id, body.name, body.walletType, initialBalance]
-  );
-  return c.json(rows[0], 201);
+      [id, user.id, body.name, body.walletType, initialBalance]
+    );
+    return c.json(rows[0], 201);
+  });
 });
 router6.patch("/:id", async (c) => {
   const body = await c.req.json();
@@ -53529,105 +53583,109 @@ router6.delete("/:id", async (c) => {
   return c.json({ success: true });
 });
 router6.post("/transactions", async (c) => {
-  const body = await c.req.json();
   const user = c.get("user");
-  const { walletId, type, amount, note, date: date4 } = body;
-  const txId = randomUUID4();
-  const dateValue = date4.includes("T") ? new Date(date4) : /* @__PURE__ */ new Date(date4 + "T00:00:00.000Z");
-  const client = await db.connect();
-  try {
-    await client.query("BEGIN");
-    const { rows: [wallet] } = await client.query(
-      `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
-      [walletId, user.id]
-    );
-    if (!wallet) {
-      await client.query("ROLLBACK");
-      return c.json({ error: "Wallet not found" }, 404);
-    }
-    if (type === "EXPENSE" && wallet.walletType !== "EWALLET" && Number(wallet.currentBalance) - amount < 0) {
-      await client.query("ROLLBACK");
-      return c.json({ error: "Insufficient balance" }, 400);
-    }
-    const { rows: [tx] } = await client.query(
-      `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "createdAt", "updatedAt")
+  return withIdempotency(c, user.id, async () => {
+    const body = await c.req.json();
+    const { walletId, type, amount, note, date: date4 } = body;
+    const txId = randomUUID4();
+    const dateValue = date4.includes("T") ? new Date(date4) : /* @__PURE__ */ new Date(date4 + "T00:00:00.000Z");
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows: [wallet] } = await client.query(
+        `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+        [walletId, user.id]
+      );
+      if (!wallet) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "Wallet not found" }, 404);
+      }
+      if (type === "EXPENSE" && wallet.walletType !== "EWALLET" && Number(wallet.currentBalance) - amount < 0) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "Insufficient balance" }, 400);
+      }
+      const { rows: [tx] } = await client.query(
+        `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "createdAt", "updatedAt")
        VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
        RETURNING *`,
-      [txId, walletId, type, amount, note ?? null, dateValue]
-    );
-    const balanceChange = type === "TOPUP" ? amount : -amount;
-    const { rows: [updatedWallet] } = await client.query(
-      `UPDATE wallets SET "currentBalance" = "currentBalance" + $1, "updatedAt" = NOW()
+        [txId, walletId, type, amount, note ?? null, dateValue]
+      );
+      const balanceChange = type === "TOPUP" ? amount : -amount;
+      const { rows: [updatedWallet] } = await client.query(
+        `UPDATE wallets SET "currentBalance" = "currentBalance" + $1, "updatedAt" = NOW()
        WHERE id = $2 RETURNING *`,
-      [balanceChange, walletId]
-    );
-    await client.query("COMMIT");
-    return c.json({ transaction: tx, wallet: updatedWallet }, 201);
-  } catch (e) {
-    await client.query("ROLLBACK");
-    throw e;
-  } finally {
-    client.release();
-  }
+        [balanceChange, walletId]
+      );
+      await client.query("COMMIT");
+      return c.json({ transaction: tx, wallet: updatedWallet }, 201);
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
 });
 router6.post("/transfer", async (c) => {
-  const body = await c.req.json();
   const user = c.get("user");
-  const { fromWalletId, toWalletId, amount, note, date: date4 } = body;
-  if (fromWalletId === toWalletId)
-    return c.json({ error: "Cannot transfer to the same wallet" }, 400);
-  if (!amount || amount <= 0)
-    return c.json({ error: "Invalid amount" }, 400);
-  const dateValue = date4.includes("T") ? new Date(date4) : /* @__PURE__ */ new Date(date4 + "T00:00:00.000Z");
-  const client = await db.connect();
-  try {
-    await client.query("BEGIN");
-    const { rows: [fromWallet] } = await client.query(
-      `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
-      [fromWalletId, user.id]
-    );
-    if (!fromWallet) {
-      await client.query("ROLLBACK");
-      return c.json({ error: "Source wallet not found" }, 404);
-    }
-    if (fromWallet.walletType !== "EWALLET" && Number(fromWallet.currentBalance) < amount) {
-      await client.query("ROLLBACK");
-      return c.json({ error: "Insufficient balance" }, 400);
-    }
-    const { rows: [toWallet] } = await client.query(
-      `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
-      [toWalletId, user.id]
-    );
-    if (!toWallet) {
-      await client.query("ROLLBACK");
-      return c.json({ error: "Destination wallet not found" }, 404);
-    }
-    await client.query(
-      `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "createdAt", "updatedAt")
+  return withIdempotency(c, user.id, async () => {
+    const body = await c.req.json();
+    const { fromWalletId, toWalletId, amount, note, date: date4 } = body;
+    if (fromWalletId === toWalletId)
+      return c.json({ error: "Cannot transfer to the same wallet" }, 400);
+    if (!amount || amount <= 0)
+      return c.json({ error: "Invalid amount" }, 400);
+    const dateValue = date4.includes("T") ? new Date(date4) : /* @__PURE__ */ new Date(date4 + "T00:00:00.000Z");
+    const client = await db.connect();
+    try {
+      await client.query("BEGIN");
+      const { rows: [fromWallet] } = await client.query(
+        `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+        [fromWalletId, user.id]
+      );
+      if (!fromWallet) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "Source wallet not found" }, 404);
+      }
+      if (fromWallet.walletType !== "EWALLET" && Number(fromWallet.currentBalance) < amount) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "Insufficient balance" }, 400);
+      }
+      const { rows: [toWallet] } = await client.query(
+        `SELECT * FROM wallets WHERE id = $1 AND "userId" = $2 FOR UPDATE`,
+        [toWalletId, user.id]
+      );
+      if (!toWallet) {
+        await client.query("ROLLBACK");
+        return c.json({ error: "Destination wallet not found" }, 404);
+      }
+      await client.query(
+        `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "createdAt", "updatedAt")
        VALUES ($1, $2, 'TRANSFER_OUT', $3, $4, $5, NOW(), NOW())`,
-      [randomUUID4(), fromWalletId, amount, note ?? null, dateValue]
-    );
-    await client.query(
-      `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "createdAt", "updatedAt")
+        [randomUUID4(), fromWalletId, amount, note ?? null, dateValue]
+      );
+      await client.query(
+        `INSERT INTO wallet_transactions (id, "walletId", type, amount, note, date, "createdAt", "updatedAt")
        VALUES ($1, $2, 'TRANSFER_IN', $3, $4, $5, NOW(), NOW())`,
-      [randomUUID4(), toWalletId, amount, note ?? null, dateValue]
-    );
-    const { rows: [updatedFrom] } = await client.query(
-      `UPDATE wallets SET "currentBalance" = "currentBalance" - $1, "updatedAt" = NOW() WHERE id = $2 RETURNING *`,
-      [amount, fromWalletId]
-    );
-    const { rows: [updatedTo] } = await client.query(
-      `UPDATE wallets SET "currentBalance" = "currentBalance" + $1, "updatedAt" = NOW() WHERE id = $2 RETURNING *`,
-      [amount, toWalletId]
-    );
-    await client.query("COMMIT");
-    return c.json({ fromWallet: updatedFrom, toWallet: updatedTo }, 201);
-  } catch (e) {
-    await client.query("ROLLBACK");
-    throw e;
-  } finally {
-    client.release();
-  }
+        [randomUUID4(), toWalletId, amount, note ?? null, dateValue]
+      );
+      const { rows: [updatedFrom] } = await client.query(
+        `UPDATE wallets SET "currentBalance" = "currentBalance" - $1, "updatedAt" = NOW() WHERE id = $2 RETURNING *`,
+        [amount, fromWalletId]
+      );
+      const { rows: [updatedTo] } = await client.query(
+        `UPDATE wallets SET "currentBalance" = "currentBalance" + $1, "updatedAt" = NOW() WHERE id = $2 RETURNING *`,
+        [amount, toWalletId]
+      );
+      await client.query("COMMIT");
+      return c.json({ fromWallet: updatedFrom, toWallet: updatedTo }, 201);
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  });
 });
 router6.delete("/transactions/:id", async (c) => {
   const { id } = c.req.param();
@@ -53724,17 +53782,19 @@ router7.get("/summary", async (c) => {
   });
 });
 router7.post("/", async (c) => {
-  const body = await c.req.json();
   const user = c.get("user");
-  const id = randomUUID5();
-  const date4 = body.date.includes("T") ? new Date(body.date) : /* @__PURE__ */ new Date(body.date + "T00:00:00.000Z");
-  const { rows } = await db.query(
-    `INSERT INTO savings (id, "userId", amount, "goalName", date, type, "createdAt", "updatedAt")
+  return withIdempotency(c, user.id, async () => {
+    const body = await c.req.json();
+    const id = randomUUID5();
+    const date4 = body.date.includes("T") ? new Date(body.date) : /* @__PURE__ */ new Date(body.date + "T00:00:00.000Z");
+    const { rows } = await db.query(
+      `INSERT INTO savings (id, "userId", amount, "goalName", date, type, "createdAt", "updatedAt")
      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
      RETURNING *`,
-    [id, user.id, body.amount, body.goalName, date4, body.type]
-  );
-  return c.json(rows[0], 201);
+      [id, user.id, body.amount, body.goalName, date4, body.type]
+    );
+    return c.json(rows[0], 201);
+  });
 });
 router7.delete("/:id", async (c) => {
   const { id } = c.req.param();
@@ -53782,23 +53842,25 @@ router8.get("/summary", async (c) => {
   });
 });
 router8.post("/", async (c) => {
-  const body = await c.req.json();
   const user = c.get("user");
-  const id = randomUUID6();
-  if (body.walletId) {
-    const { rows: rows2 } = await db.query(
-      `SELECT id FROM wallets WHERE id = $1 AND "userId" = $2`,
-      [body.walletId, user.id]
-    );
-    if (!rows2[0]) return c.json({ error: "Wallet not found" }, 404);
-  }
-  const { rows } = await db.query(
-    `INSERT INTO wishlists (id, "userId", name, "targetPrice", "currentProgress", priority, note, "walletId", "createdAt", "updatedAt")
+  return withIdempotency(c, user.id, async () => {
+    const body = await c.req.json();
+    const id = randomUUID6();
+    if (body.walletId) {
+      const { rows: rows2 } = await db.query(
+        `SELECT id FROM wallets WHERE id = $1 AND "userId" = $2`,
+        [body.walletId, user.id]
+      );
+      if (!rows2[0]) return c.json({ error: "Wallet not found" }, 404);
+    }
+    const { rows } = await db.query(
+      `INSERT INTO wishlists (id, "userId", name, "targetPrice", "currentProgress", priority, note, "walletId", "createdAt", "updatedAt")
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
      RETURNING *`,
-    [id, user.id, body.name, body.targetPrice, body.currentProgress ?? 0, body.priority ?? "MEDIUM", body.note ?? null, body.walletId ?? null]
-  );
-  return c.json(rows[0], 201);
+      [id, user.id, body.name, body.targetPrice, body.currentProgress ?? 0, body.priority ?? "MEDIUM", body.note ?? null, body.walletId ?? null]
+    );
+    return c.json(rows[0], 201);
+  });
 });
 router8.patch("/:id", async (c) => {
   const body = await c.req.json();

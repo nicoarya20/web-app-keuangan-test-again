@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { randomUUID } from 'crypto'
 import { db } from '../lib/db'
+import { withIdempotency } from '../lib/idempotency'
 import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
@@ -46,8 +47,9 @@ router.get('/total-balance', async (c) => {
 })
 
 router.post('/', async (c) => {
-  const body = await c.req.json()
   const user = c.get('user')
+  return withIdempotency(c, user.id, async () => {
+  const body = await c.req.json()
   const id = randomUUID()
   const initialBalance = body.initialBalance ?? 0
 
@@ -58,6 +60,7 @@ router.post('/', async (c) => {
     [id, user.id, body.name, body.walletType, initialBalance]
   )
   return c.json(rows[0], 201)
+  })
 })
 
 router.patch('/:id', async (c) => {
@@ -96,8 +99,9 @@ router.delete('/:id', async (c) => {
 // ============================================================
 
 router.post('/transactions', async (c) => {
-  const body = await c.req.json()
   const user = c.get('user')
+  return withIdempotency(c, user.id, async () => {
+  const body = await c.req.json()
   const { walletId, type, amount, note, date } = body
   const txId = randomUUID()
   const dateValue = date.includes('T') ? new Date(date) : new Date(date + 'T00:00:00.000Z')
@@ -144,11 +148,13 @@ router.post('/transactions', async (c) => {
   } finally {
     client.release()
   }
+  })
 })
 
 router.post('/transfer', async (c) => {
-  const body = await c.req.json()
   const user = c.get('user')
+  return withIdempotency(c, user.id, async () => {
+  const body = await c.req.json()
   const { fromWalletId, toWalletId, amount, note, date } = body
 
   if (fromWalletId === toWalletId)
@@ -213,6 +219,7 @@ router.post('/transfer', async (c) => {
   } finally {
     client.release()
   }
+  })
 })
 
 router.delete('/transactions/:id', async (c) => {

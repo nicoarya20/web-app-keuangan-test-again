@@ -12,6 +12,7 @@ import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 import { useT } from '../context/LanguageContext';
 import { AmountText } from '../components/AmountText';
+import { useIdempotencyKey } from '../../lib/useIdempotencyKey';
 
 const INCOME_CATEGORIES = ['Salary', 'Freelance', 'Side Hustle', 'Bonus', 'Investment', 'Other'];
 const NO_WALLET = '__none__';
@@ -30,9 +31,12 @@ export const IncomePage: React.FC = () => {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const idem = useIdempotencyKey();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isSubmitting) return;
 
     if (!formData.amount || parseFloat(formData.amount) <= 0) {
       toast.error(t.income.toast.invalidAmount);
@@ -48,7 +52,8 @@ export const IncomePage: React.FC = () => {
         recurring: formData.recurring,
         note: formData.note,
         walletId: formData.walletId === NO_WALLET ? null : formData.walletId,
-      });
+      }, idem.getKey());
+      idem.reset();
 
       setFormData({
         amount: '',
