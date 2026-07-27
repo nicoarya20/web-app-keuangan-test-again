@@ -145,7 +145,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
                 )}
               </button>
             </PopoverTrigger>
-            <PopoverContent align="end" className="w-80 p-0">
+            <PopoverContent align="end" collisionPadding={8} className="w-[calc(100vw-1rem)] sm:w-80 p-0">
               <div className="flex items-center justify-between px-4 py-3 border-b">
                 <span className="font-semibold text-sm text-gray-800">{t.notifications.title}</span>
                 {unreadCount > 0 && (
