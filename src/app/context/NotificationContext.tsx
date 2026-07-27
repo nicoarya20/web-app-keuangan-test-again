@@ -98,13 +98,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   }, [session?.user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Refetch on window focus sebagai fallback near-realtime
+  // Refetch on window focus
   useEffect(() => {
     const onFocus = () => {
       if (session?.user?.id) fetchNotifications()
     }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
+  }, [fetchNotifications, session?.user?.id])
+
+  // Polling setiap 15 detik saat tab aktif — fallback jika realtime belum connect
+  useEffect(() => {
+    if (!session?.user?.id) return
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') fetchNotifications()
+    }, 15_000)
+    return () => clearInterval(interval)
   }, [fetchNotifications, session?.user?.id])
 
   const markAllRead = useCallback(async () => {
