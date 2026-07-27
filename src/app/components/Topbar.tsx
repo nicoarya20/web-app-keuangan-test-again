@@ -53,7 +53,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
   const { lang, setLang } = useLanguage();
   const t = useT();
   const { isHidden, toggle } = useBalanceVisibility();
-  const { notifications, unreadCount, markAllRead } = useNotifications();
+  const { notifications, unreadCount, markAllRead, clearAll } = useNotifications();
   const [open, setOpen] = React.useState(false);
 
   const handleLogout = async () => {
@@ -148,13 +148,23 @@ export const Topbar: React.FC<TopbarProps> = ({ onMenuClick }) => {
             <PopoverContent align="end" collisionPadding={8} className="w-[calc(100vw-1rem)] sm:w-80 p-0">
               <div className="flex items-center justify-between px-4 py-3 border-b">
                 <span className="font-semibold text-sm text-gray-800">{t.notifications.title}</span>
-                {unreadCount > 0 && (
-                  <button
-                    onClick={() => markAllRead()}
-                    className="text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
-                  >
-                    {t.notifications.markAllRead}
-                  </button>
+                {notifications.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={() => markAllRead()}
+                        className="text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
+                      >
+                        {t.notifications.markAllRead}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => clearAll()}
+                      className="text-xs text-red-500 hover:text-red-700 transition-colors"
+                    >
+                      {t.notifications.clearAll}
+                    </button>
+                  </div>
                 )}
               </div>
               <ScrollArea className="max-h-80">

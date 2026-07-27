@@ -328,6 +328,7 @@ export const api = {
     list: () => request<{ notifications: Notification[]; unreadCount: number }>('/notifications'),
     markAllRead: () => request<{ success: boolean }>('/notifications/read-all', { method: 'POST' }),
     markRead: (id: string) => request<{ success: boolean }>(`/notifications/${id}/read`, { method: 'PATCH' }),
+    clearAll: () => request<{ success: boolean }>('/notifications/clear-all', { method: 'DELETE' }),
     token: () => request<{ token: string }>('/notifications/token'),
   },
 

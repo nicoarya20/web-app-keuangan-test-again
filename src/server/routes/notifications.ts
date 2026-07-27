@@ -49,6 +49,14 @@ router.patch('/:id/read', async (c) => {
   return c.json({ success: true })
 })
 
+// DELETE /clear-all — hapus semua notifikasi user
+router.delete('/clear-all', async (c) => {
+  const user = c.get('user')
+  await ensureTable()
+  await db.query(`DELETE FROM notifications WHERE "userId" = $1`, [user.id])
+  return c.json({ success: true })
+})
+
 // GET /token — mint a short-lived Supabase JWT for Realtime auth
 router.get('/token', async (c) => {
   const user = c.get('user')

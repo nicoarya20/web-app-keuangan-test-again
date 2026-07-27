@@ -9,6 +9,7 @@ interface NotificationContextValue {
   loading: boolean
   markAllRead: () => Promise<void>
   markRead: (id: string) => Promise<void>
+  clearAll: () => Promise<void>
   refetch: () => Promise<void>
 }
 
@@ -18,6 +19,7 @@ const NotificationContext = createContext<NotificationContextValue>({
   loading: false,
   markAllRead: async () => {},
   markRead: async () => {},
+  clearAll: async () => {},
   refetch: async () => {},
 })
 
@@ -126,6 +128,16 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     }
   }, [])
 
+  const clearAll = useCallback(async () => {
+    try {
+      await api.notifications.clearAll()
+      setNotifications([])
+      setUnreadCount(0)
+    } catch {
+      // ignore
+    }
+  }, [])
+
   const markRead = useCallback(async (id: string) => {
     try {
       await api.notifications.markRead(id)
@@ -137,7 +149,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, [])
 
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, loading, markAllRead, markRead, refetch: fetchNotifications }}>
+    <NotificationContext.Provider value={{ notifications, unreadCount, loading, markAllRead, markRead, clearAll, refetch: fetchNotifications }}>
       {children}
     </NotificationContext.Provider>
   )
