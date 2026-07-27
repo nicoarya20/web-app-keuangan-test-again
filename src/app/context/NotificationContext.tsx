@@ -1,5 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { api, type Notification } from '../../lib/api'
+import { useSession } from '../../lib/auth'
+import { supabase } from '../../lib/supabase'
 
 interface NotificationContextValue {
   notifications: Notification[]
@@ -23,7 +25,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
-  const fetchedRef = useRef(false)
+  const { data: session } = useSession()
+  const channelRef = useRef<ReturnType<NonNullable<typeof supabase>['channel']> | null>(null)
+  const tokenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const fetchNotifications = useCallback(async () => {
     try {
@@ -31,23 +35,77 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       setNotifications(data.notifications)
       setUnreadCount(data.unreadCount)
     } catch {
-      // silently fail — notifications are non-critical
+      // non-critical
     } finally {
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => {
-    if (!fetchedRef.current) {
-      fetchedRef.current = true
-      fetchNotifications()
+  const teardownRealtime = useCallback(async () => {
+    if (tokenTimerRef.current) {
+      clearTimeout(tokenTimerRef.current)
+      tokenTimerRef.current = null
     }
+    if (channelRef.current && supabase) {
+      await supabase.removeChannel(channelRef.current)
+      channelRef.current = null
+    }
+  }, [])
 
-    // Refetch on window focus (near-realtime fallback before Phase 3)
-    const onFocus = () => fetchNotifications()
+  const setupRealtime = useCallback(async (userId: string) => {
+    if (!supabase) return // env belum diisi, REST fallback cukup
+
+    await teardownRealtime()
+
+    try {
+      const { token } = await api.notifications.token()
+      await supabase.realtime.setAuth(token)
+
+      channelRef.current = supabase
+        .channel(`notifications:${userId}`)
+        .on(
+          'postgres_changes' as any,
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+            filter: `userId=eq.${userId}`,
+          },
+          (payload: any) => {
+            const n = payload.new as Notification
+            setNotifications((prev) => [n, ...prev.slice(0, 49)])
+            setUnreadCount((prev) => prev + 1)
+          }
+        )
+        .subscribe()
+
+      // Refresh token 5 menit sebelum expired (JWT 1h → refresh di menit ke-55)
+      tokenTimerRef.current = setTimeout(() => setupRealtime(userId), 55 * 60 * 1000)
+    } catch {
+      // SUPABASE_JWT_SECRET belum diisi atau error jaringan — REST fallback tetap aktif
+    }
+  }, [teardownRealtime])
+
+  // Mount: fetch + setup realtime saat session siap
+  useEffect(() => {
+    if (!session?.user?.id) return
+
+    fetchNotifications()
+    setupRealtime(session.user.id)
+
+    return () => {
+      teardownRealtime()
+    }
+  }, [session?.user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Refetch on window focus sebagai fallback near-realtime
+  useEffect(() => {
+    const onFocus = () => {
+      if (session?.user?.id) fetchNotifications()
+    }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [fetchNotifications])
+  }, [fetchNotifications, session?.user?.id])
 
   const markAllRead = useCallback(async () => {
     try {
