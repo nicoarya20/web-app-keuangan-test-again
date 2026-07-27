@@ -42,6 +42,17 @@ function idem(key?: string): { headers?: Record<string, string> } {
 // TYPES (mirroring backend Prisma models)
 // ============================================================
 
+export interface Notification {
+  id: string
+  userId: string
+  entity: 'income' | 'expense' | 'wallet' | 'saving' | 'wishlist' | 'budget'
+  action: 'create' | 'update' | 'delete' | 'transfer' | 'topup' | 'fund'
+  entityId: string | null
+  meta: Record<string, unknown>
+  read: boolean
+  createdAt: string
+}
+
 export interface Income {
   id: string
   userId: string
@@ -310,6 +321,14 @@ export const api = {
       request<Budget>('/budgets', { method: 'POST', body: JSON.stringify(data) }),
     delete: (id: string) =>
       request<{ success: boolean }>(`/budgets/${id}`, { method: 'DELETE' }),
+  },
+
+  // --- NOTIFICATIONS ---
+  notifications: {
+    list: () => request<{ notifications: Notification[]; unreadCount: number }>('/notifications'),
+    markAllRead: () => request<{ success: boolean }>('/notifications/read-all', { method: 'POST' }),
+    markRead: (id: string) => request<{ success: boolean }>(`/notifications/${id}/read`, { method: 'PATCH' }),
+    token: () => request<{ token: string }>('/notifications/token'),
   },
 
   // --- DASHBOARD ---

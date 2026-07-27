@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { randomUUID } from 'crypto'
 import { db } from '../lib/db'
 import { withIdempotency } from '../lib/idempotency'
+import { safeNotify } from '../lib/notifications'
 import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
@@ -94,6 +95,7 @@ router.post('/', async (c) => {
       )
 
       await client.query('COMMIT')
+      await safeNotify(user.id, { entity: 'expense', action: 'create', entityId: id, meta: { amount: body.amount, category: body.category } })
       return c.json(rows[0], 201)
     } catch (e) {
       await client.query('ROLLBACK')
@@ -109,6 +111,7 @@ router.post('/', async (c) => {
      RETURNING *`,
     [id, user.id, body.amount, body.category, date, body.note ?? null, body.tags ?? []]
   )
+  await safeNotify(user.id, { entity: 'expense', action: 'create', entityId: id, meta: { amount: body.amount, category: body.category } })
   return c.json(rows[0], 201)
   })
 })
@@ -139,11 +142,14 @@ router.patch('/:id', async (c) => {
     values
   )
   if (!rows[0]) return c.json({ error: 'Record not found' }, 404)
+  const user = c.get('user')
+  await safeNotify(user.id, { entity: 'expense', action: 'update', entityId: id, meta: { amount: rows[0].amount, category: rows[0].category } })
   return c.json(rows[0])
 })
 
 router.delete('/:id', async (c) => {
   const { id } = c.req.param()
+  const user = c.get('user')
 
   const { rows: [expense] } = await db.query(`SELECT * FROM expenses WHERE id = $1`, [id])
   if (!expense) return c.json({ error: 'Record not found' }, 404)
@@ -172,6 +178,7 @@ router.delete('/:id', async (c) => {
     await db.query(`DELETE FROM expenses WHERE id = $1`, [id])
   }
 
+  await safeNotify(user.id, { entity: 'expense', action: 'delete', entityId: id, meta: { amount: expense.amount, category: expense.category } })
   return c.json({ success: true })
 })
 

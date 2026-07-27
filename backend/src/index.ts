@@ -13,6 +13,7 @@ import savingRoutes from './routes/saving'
 import wishlistRoutes from './routes/wishlist'
 import budgetRoutes from './routes/budget'
 import dashboardRoutes from './routes/dashboard'
+import notificationRoutes from './routes/notifications'
 
 const app = new Hono()
 
@@ -73,6 +74,7 @@ app.route('/api/savings', savingRoutes)
 app.route('/api/wishlists', wishlistRoutes)
 app.route('/api/budgets', budgetRoutes)
 app.route('/api/dashboard', dashboardRoutes)
+app.route('/api/notifications', notificationRoutes)
 
 // ============================================================
 // EXPORT AND START SERVER

@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { randomUUID } from 'crypto'
 import { db } from '../lib/db'
 import { withIdempotency } from '../lib/idempotency'
+import { safeNotify } from '../lib/notifications'
 import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
@@ -69,14 +70,18 @@ router.post('/', async (c) => {
      RETURNING *`,
     [id, user.id, body.amount, body.goalName, date, body.type]
   )
+  await safeNotify(user.id, { entity: 'saving', action: 'create', entityId: id, meta: { amount: body.amount, goalName: body.goalName, type: body.type } })
   return c.json(rows[0], 201)
   })
 })
 
 router.delete('/:id', async (c) => {
   const { id } = c.req.param()
+  const user = c.get('user')
+  const { rows: [saving] } = await db.query(`SELECT amount, "goalName" FROM savings WHERE id = $1`, [id])
   const { rowCount } = await db.query(`DELETE FROM savings WHERE id = $1`, [id])
   if (!rowCount) return c.json({ error: 'Record not found' }, 404)
+  await safeNotify(user.id, { entity: 'saving', action: 'delete', entityId: id, meta: { amount: saving?.amount, goalName: saving?.goalName } })
   return c.json({ success: true })
 })
 

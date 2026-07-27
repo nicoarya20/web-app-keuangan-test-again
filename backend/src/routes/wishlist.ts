@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { randomUUID } from 'crypto'
 import { db } from '../lib/db'
 import { withIdempotency } from '../lib/idempotency'
+import { safeNotify } from '../lib/notifications'
 import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
@@ -63,6 +64,7 @@ router.post('/', async (c) => {
      RETURNING *`,
     [id, user.id, body.name, body.targetPrice, body.currentProgress ?? 0, body.priority ?? 'MEDIUM', body.note ?? null, body.walletId ?? null]
   )
+  await safeNotify(user.id, { entity: 'wishlist', action: 'create', entityId: id, meta: { name: body.name, targetPrice: body.targetPrice } })
   return c.json(rows[0], 201)
   })
 })
@@ -94,6 +96,7 @@ router.patch('/:id', async (c) => {
     values
   )
   if (!rows[0]) return c.json({ error: 'Record not found' }, 404)
+  await safeNotify(user.id, { entity: 'wishlist', action: 'update', entityId: id, meta: { name: rows[0].name } })
   return c.json(rows[0])
 })
 
@@ -160,6 +163,7 @@ router.post('/:id/fund', async (c) => {
     )
 
     await client.query('COMMIT')
+    await safeNotify(user.id, { entity: 'wishlist', action: 'fund', entityId: id, meta: { amount, name: wishlist.name } })
     return c.json({ wishlist: updatedWishlist, wallet: updatedWallet })
   } catch (e) {
     await client.query('ROLLBACK')
@@ -244,7 +248,7 @@ async function cancelWishlist(id: string, userId: string) {
     await client.query(`DELETE FROM wishlists WHERE id = $1 AND "userId" = $2`, [id, userId])
 
     await client.query('COMMIT')
-    return { notFound: false }
+    return { notFound: false, name: wishlist.name }
   } catch (e) {
     await client.query('ROLLBACK')
     throw e
@@ -258,6 +262,7 @@ router.post('/:id/cancel', async (c) => {
   const user = c.get('user')
   const result = await cancelWishlist(id, user.id)
   if (result.notFound) return c.json({ error: 'Record not found' }, 404)
+  await safeNotify(user.id, { entity: 'wishlist', action: 'delete', entityId: id, meta: { name: result.name } })
   return c.json({ success: true })
 })
 
@@ -266,6 +271,7 @@ router.delete('/:id', async (c) => {
   const user = c.get('user')
   const result = await cancelWishlist(id, user.id)
   if (result.notFound) return c.json({ error: 'Record not found' }, 404)
+  await safeNotify(user.id, { entity: 'wishlist', action: 'delete', entityId: id, meta: { name: result.name } })
   return c.json({ success: true })
 })
 

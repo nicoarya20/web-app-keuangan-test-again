@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { randomUUID } from 'crypto'
 import { db } from '../lib/db'
 import { withIdempotency } from '../lib/idempotency'
+import { safeNotify } from '../lib/notifications'
 import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
@@ -59,6 +60,7 @@ router.post('/', async (c) => {
      RETURNING *`,
     [id, user.id, body.name, body.walletType, initialBalance]
   )
+  await safeNotify(user.id, { entity: 'wallet', action: 'create', entityId: id, meta: { name: body.name, walletType: body.walletType, initialBalance } })
   return c.json(rows[0], 201)
   })
 })
@@ -84,13 +86,18 @@ router.patch('/:id', async (c) => {
     values
   )
   if (!rows[0]) return c.json({ error: 'Wallet not found' }, 404)
+  const user = c.get('user')
+  await safeNotify(user.id, { entity: 'wallet', action: 'update', entityId: id, meta: { name: rows[0].name } })
   return c.json(rows[0])
 })
 
 router.delete('/:id', async (c) => {
   const { id } = c.req.param()
+  const user = c.get('user')
+  const { rows: [wallet] } = await db.query(`SELECT name FROM wallets WHERE id = $1`, [id])
   const { rowCount } = await db.query(`DELETE FROM wallets WHERE id = $1`, [id])
   if (!rowCount) return c.json({ error: 'Wallet not found' }, 404)
+  await safeNotify(user.id, { entity: 'wallet', action: 'delete', entityId: id, meta: { name: wallet?.name } })
   return c.json({ success: true })
 })
 
@@ -141,6 +148,8 @@ router.post('/transactions', async (c) => {
     )
 
     await client.query('COMMIT')
+    const action = type === 'TOPUP' ? 'topup' : 'create'
+    await safeNotify(user.id, { entity: 'wallet', action, entityId: walletId, meta: { amount, type, walletName: updatedWallet.name } })
     return c.json({ transaction: tx, wallet: updatedWallet }, 201)
   } catch (e) {
     await client.query('ROLLBACK')
@@ -212,6 +221,7 @@ router.post('/transfer', async (c) => {
     )
 
     await client.query('COMMIT')
+    await safeNotify(user.id, { entity: 'wallet', action: 'transfer', meta: { amount, fromWallet: updatedFrom.name, toWallet: updatedTo.name } })
     return c.json({ fromWallet: updatedFrom, toWallet: updatedTo }, 201)
   } catch (e) {
     await client.query('ROLLBACK')

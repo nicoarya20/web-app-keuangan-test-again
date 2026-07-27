@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { randomUUID } from 'crypto'
 import { db } from '../lib/db'
+import { safeNotify } from '../lib/notifications'
 import { authMiddleware } from '../middleware/auth'
 
 const router = new Hono()
@@ -66,13 +67,17 @@ router.post('/', async (c) => {
      RETURNING *`,
     [randomUUID(), user.id, body.category, body.amount]
   )
+  await safeNotify(user.id, { entity: 'budget', action: 'create', entityId: rows[0].id, meta: { category: body.category, amount: body.amount } })
   return c.json(rows[0])
 })
 
 router.delete('/:id', async (c) => {
   const { id } = c.req.param()
+  const user = c.get('user')
+  const { rows: [budget] } = await db.query(`SELECT category, amount FROM budgets WHERE id = $1`, [id])
   const { rowCount } = await db.query(`DELETE FROM budgets WHERE id = $1`, [id])
   if (!rowCount) return c.json({ error: 'Record not found' }, 404)
+  await safeNotify(user.id, { entity: 'budget', action: 'delete', entityId: id, meta: { category: budget?.category, amount: budget?.amount } })
   return c.json({ success: true })
 })
 
