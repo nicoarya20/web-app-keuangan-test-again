@@ -94,6 +94,7 @@ interface FinanceContextType {
   cancelWishlistItem: (id: string) => Promise<void>
   deleteIncome: (id: string) => Promise<void>
   deleteExpense: (id: string) => Promise<void>
+  updateSaving: (id: string, updates: Partial<Omit<Saving, 'id'>>) => Promise<void>
   deleteSaving: (id: string) => Promise<void>
   deleteWallet: (id: string) => Promise<void>
   deleteWalletTransaction: (walletId: string, txId: string) => Promise<void>
@@ -482,6 +483,19 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
     []
   )
 
+  const updateSaving = useCallback(
+    async (id: string, updates: Partial<Omit<Saving, 'id'>>) => {
+      const payload: Record<string, unknown> = {}
+      if (updates.amount !== undefined) payload.amount = updates.amount
+      if (updates.goalName !== undefined) payload.goalName = updates.goalName
+      if (updates.date !== undefined) payload.date = updates.date
+      if (updates.type !== undefined) payload.type = updates.type.toUpperCase()
+      const updated = await api.saving.update(id, payload as Parameters<typeof api.saving.update>[1])
+      setSavings((prev) => prev.map((item) => (item.id === id ? mapSaving(updated) : item)))
+    },
+    []
+  )
+
   const deleteSaving = useCallback(
     async (id: string) => {
       await api.saving.delete(id)
@@ -554,6 +568,7 @@ export const FinanceProvider: React.FC<AuthProviderProps> = ({ children, session
         cancelWishlistItem,
         deleteIncome,
         deleteExpense,
+        updateSaving,
         deleteSaving,
         deleteWallet,
         deleteWalletTransaction,

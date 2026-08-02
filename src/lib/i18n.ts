@@ -199,7 +199,9 @@ const en = {
       noGoalName: 'Please enter a goal name',
       added: 'Saving added successfully!',
       deleted: 'Saving deleted',
+      updated: 'Saving updated!',
     },
+    editSaving: 'Edit Saving',
   },
   wallet: {
     title: 'Wallet',
@@ -454,7 +456,9 @@ const id: Translation = {
       noGoalName: 'Masukkan nama tujuan',
       added: 'Tabungan berhasil ditambahkan!',
       deleted: 'Tabungan dihapus',
+      updated: 'Tabungan berhasil diperbarui!',
     },
+    editSaving: 'Edit Tabungan',
   },
   wallet: {
     title: 'Dompet',

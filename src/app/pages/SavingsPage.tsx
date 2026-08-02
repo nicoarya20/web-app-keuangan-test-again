@@ -6,7 +6,7 @@ import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { Plus, PiggyBank, TrendingUp, Trash2 } from 'lucide-react';
+import { Plus, PiggyBank, TrendingUp, Trash2, Pencil } from 'lucide-react';
 import { format, parseISO } from 'date-fns';
 import { toast } from 'sonner';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -15,10 +15,12 @@ import { AmountText } from '../components/AmountText';
 import { useIdempotencyKey } from '../../lib/useIdempotencyKey';
 
 export const SavingsPage: React.FC = () => {
-  const { savings, addSaving, deleteSaving } = useFinance();
+  const { savings, addSaving, updateSaving, deleteSaving } = useFinance();
   const t = useT();
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editTarget, setEditTarget] = useState<{ id: string; amount: string; goalName: string; date: string; type: 'saving' | 'investment' } | null>(null);
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false);
   const idem = useIdempotencyKey();
   const [formData, setFormData] = useState({
     amount: '',
@@ -70,6 +72,34 @@ export const SavingsPage: React.FC = () => {
   const handleDelete = (id: string) => {
     deleteSaving(id);
     toast.success(t.savings.toast.deleted);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTarget || isEditSubmitting) return;
+    if (!editTarget.amount || parseFloat(editTarget.amount) <= 0) {
+      toast.error(t.savings.toast.invalidAmount);
+      return;
+    }
+    if (!editTarget.goalName) {
+      toast.error(t.savings.toast.noGoalName);
+      return;
+    }
+    setIsEditSubmitting(true);
+    try {
+      await updateSaving(editTarget.id, {
+        amount: parseFloat(editTarget.amount),
+        goalName: editTarget.goalName,
+        date: editTarget.date,
+        type: editTarget.type,
+      });
+      setEditTarget(null);
+      toast.success(t.savings.toast.updated);
+    } catch {
+      toast.error('Gagal memperbarui. Coba lagi.');
+    } finally {
+      setIsEditSubmitting(false);
+    }
   };
 
   const totalSavings = savings
@@ -182,6 +212,71 @@ export const SavingsPage: React.FC = () => {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={!!editTarget} onOpenChange={(open) => { if (!open) setEditTarget(null); }}>
+        <DialogContent className="rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>{t.savings.editSaving}</DialogTitle>
+          </DialogHeader>
+          {editTarget && (
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <Label htmlFor="edit-amount">{t.savings.amount}</Label>
+                <Input
+                  id="edit-amount"
+                  type="number"
+                  value={editTarget.amount}
+                  onChange={(e) => setEditTarget({ ...editTarget, amount: e.target.value })}
+                  className="rounded-xl"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-goalName">{t.savings.goalName}</Label>
+                <Input
+                  id="edit-goalName"
+                  value={editTarget.goalName}
+                  onChange={(e) => setEditTarget({ ...editTarget, goalName: e.target.value })}
+                  className="rounded-xl"
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-type">{t.savings.type}</Label>
+                <Select
+                  value={editTarget.type}
+                  onValueChange={(value: 'saving' | 'investment') =>
+                    setEditTarget({ ...editTarget, type: value })
+                  }
+                >
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="saving">{t.savings.typeSaving}</SelectItem>
+                    <SelectItem value="investment">{t.savings.typeInvestment}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-date">{t.savings.date}</Label>
+                <Input
+                  id="edit-date"
+                  type="date"
+                  value={editTarget.date}
+                  onChange={(e) => setEditTarget({ ...editTarget, date: e.target.value })}
+                  className="rounded-xl"
+                  required
+                />
+              </div>
+              <Button type="submit" disabled={isEditSubmitting} className="w-full bg-purple-600 hover:bg-purple-700 rounded-xl">
+                {isEditSubmitting ? 'Menyimpan...' : t.savings.editSaving}
+              </Button>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -319,6 +414,19 @@ export const SavingsPage: React.FC = () => {
                     prefix="+"
                     className="text-lg sm:text-xl font-bold text-purple-600 whitespace-nowrap"
                   />
+                  <button
+                    onClick={() => setEditTarget({
+                      id: saving.id,
+                      amount: String(saving.amount),
+                      goalName: saving.goalName,
+                      date: saving.date,
+                      type: saving.type,
+                    })}
+                    className="p-2.5 hover:bg-purple-50 rounded-lg transition-colors"
+                    aria-label="Edit saving"
+                  >
+                    <Pencil className="w-4 h-4 text-purple-500" />
+                  </button>
                   <button
                     onClick={() => handleDelete(saving.id)}
                     className="p-2.5 hover:bg-red-50 rounded-lg transition-colors"
