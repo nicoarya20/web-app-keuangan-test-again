@@ -286,6 +286,8 @@ export const api = {
       request<SavingsSummary>('/savings/summary'),
     create: (data: { amount: number; goalName: string; date: string; type: 'SAVING' | 'INVESTMENT' }, idempotencyKey?: string) =>
       request<Saving>('/savings', { method: 'POST', body: JSON.stringify(data), ...idem(idempotencyKey) }),
+    update: (id: string, data: Partial<{ amount: number; goalName: string; date: string; type: 'SAVING' | 'INVESTMENT' }>) =>
+      request<Saving>(`/savings/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
     delete: (id: string) =>
       request<{ success: boolean }>(`/savings/${id}`, { method: 'DELETE' }),
   },

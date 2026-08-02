@@ -75,6 +75,37 @@ router.post('/', async (c) => {
   })
 })
 
+router.patch('/:id', async (c) => {
+  const { id } = c.req.param()
+  const user = c.get('user')
+  const body = await c.req.json()
+
+  const fields: string[] = []
+  const values: unknown[] = []
+  let idx = 1
+
+  if (body.amount !== undefined) { fields.push(`amount = $${idx++}`); values.push(body.amount) }
+  if (body.goalName !== undefined) { fields.push(`"goalName" = $${idx++}`); values.push(body.goalName) }
+  if (body.date !== undefined) {
+    const date = body.date.includes('T') ? new Date(body.date) : new Date(body.date + 'T00:00:00.000Z')
+    fields.push(`date = $${idx++}`); values.push(date)
+  }
+  if (body.type !== undefined) { fields.push(`type = $${idx++}`); values.push(body.type) }
+
+  if (fields.length === 0) return c.json({ error: 'No fields to update' }, 400)
+
+  fields.push(`"updatedAt" = NOW()`)
+  values.push(id, user.id)
+
+  const { rows } = await db.query(
+    `UPDATE savings SET ${fields.join(', ')} WHERE id = $${idx++} AND "userId" = $${idx} RETURNING *`,
+    values
+  )
+  if (!rows[0]) return c.json({ error: 'Record not found' }, 404)
+  await safeNotify(user.id, { entity: 'saving', action: 'update', entityId: id, meta: { amount: rows[0].amount, goalName: rows[0].goalName } })
+  return c.json(rows[0])
+})
+
 router.delete('/:id', async (c) => {
   const { id } = c.req.param()
   const user = c.get('user')
