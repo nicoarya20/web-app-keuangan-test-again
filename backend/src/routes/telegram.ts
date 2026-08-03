@@ -4,6 +4,24 @@ import { db } from '../lib/db'
 const router = new Hono()
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!
+const CRON_SECRET = process.env.CRON_SECRET
+
+// POST /api/telegram/setup-webhook — register webhook URL ke Telegram (butuh x-cron-secret)
+router.post('/setup-webhook', async (c) => {
+  if (!CRON_SECRET || c.req.header('x-cron-secret') !== CRON_SECRET)
+    return c.json({ error: 'Unauthorized' }, 401)
+
+  const { url } = await c.req.json()
+  if (!url) return c.json({ error: 'url required' }, 400)
+
+  const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/setWebhook`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  })
+  const data = await res.json()
+  return c.json(data)
+})
 
 // POST /api/telegram/test — kirim pesan test ke chat user
 router.post('/test', async (c) => {
