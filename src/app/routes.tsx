@@ -8,6 +8,7 @@ import { SavingsPage } from './pages/SavingsPage';
 import { WalletPage } from './pages/WalletPage';
 import LoginPage from './pages/LoginPage';
 import { RequireAuth } from './components/RequireAuth';
+import { SettingsPage } from './pages/SettingsPage';
 
 export const router = createBrowserRouter([
   {
@@ -41,6 +42,10 @@ export const router = createBrowserRouter([
       {
         path: 'wallet',
         element: <WalletPage />
+      },
+      {
+        path: 'settings',
+        element: <SettingsPage />
       },
     ],
   },

@@ -8,6 +8,7 @@ const en = {
     wishlist: 'Wishlist',
     savings: 'Savings',
     wallet: 'Wallet',
+    settings: 'Settings',
   },
   topbar: {
     searchPlaceholder: 'Search transactions...',
@@ -265,6 +266,7 @@ const id: Translation = {
     wishlist: 'Wishlist',
     savings: 'Tabungan',
     wallet: 'Dompet',
+    settings: 'Pengaturan',
   },
   topbar: {
     searchPlaceholder: 'Cari transaksi...',
