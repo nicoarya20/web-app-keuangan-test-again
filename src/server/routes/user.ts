@@ -16,7 +16,7 @@ router.get('/email/:email', async (c) => {
 
 router.get('/:id', async (c) => {
   const { rows } = await db.query(
-    `SELECT id, email, name FROM users WHERE id = $1`,
+    `SELECT id, email, name, "telegramChatId" FROM users WHERE id = $1`,
     [c.req.param('id')]
   )
   if (!rows[0]) return c.json({ error: 'User not found' }, 404)
@@ -45,13 +45,14 @@ router.patch('/:id', async (c) => {
 
   if (body.name !== undefined) { fields.push(`name = $${i++}`); values.push(body.name) }
   if (body.email !== undefined) { fields.push(`email = $${i++}`); values.push(body.email) }
+  if (body.telegramChatId !== undefined) { fields.push(`"telegramChatId" = $${i++}`); values.push(body.telegramChatId || null) }
 
   if (fields.length === 0) return c.json({ error: 'No fields to update' }, 400)
   fields.push(`"updatedAt" = NOW()`)
   values.push(id)
 
   const { rows } = await db.query(
-    `UPDATE users SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, email, name`,
+    `UPDATE users SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, email, name, "telegramChatId"`,
     values
   )
   if (!rows[0]) return c.json({ error: 'User not found' }, 404)
