@@ -13,6 +13,8 @@ import wishlistRoutes from '../src/server/routes/wishlist'
 import budgetRoutes from '../src/server/routes/budget'
 import dashboardRoutes from '../src/server/routes/dashboard'
 import notificationRoutes from '../src/server/routes/notifications'
+import telegramRoutes from '../src/server/routes/telegram'
+import cronRoutes from '../src/server/routes/cron'
 
 const app = new Hono()
 
@@ -41,6 +43,8 @@ app.route('/api/wishlists', wishlistRoutes)
 app.route('/api/budgets', budgetRoutes)
 app.route('/api/dashboard', dashboardRoutes)
 app.route('/api/notifications', notificationRoutes)
+app.route('/api/telegram', telegramRoutes)
+app.route('/api/cron', cronRoutes)
 
 // Read POST body explicitly — Vercel's serverless runtime does not stream
 // the body via data events the way @hono/node-server expects, causing all
