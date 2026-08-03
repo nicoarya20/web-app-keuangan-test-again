@@ -9,6 +9,7 @@ import {
   X,
   Wallet,
   User,
+  Settings,
 } from 'lucide-react';
 import { cn } from '../components/ui/utils';
 import { useSession } from '../../lib/auth';
@@ -31,6 +32,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen = true, onClose }) => {
     { path: '/wishlist', label: t.sidebar.wishlist, icon: Heart },
     { path: '/savings', label: t.sidebar.savings, icon: PiggyBank },
     { path: '/wallet', label: t.sidebar.wallet, icon: Wallet },
+    { path: '/settings', label: t.sidebar.settings, icon: Settings },
   ];
 
   const userName = session?.user?.name || 'User';

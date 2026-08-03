@@ -14,6 +14,8 @@ import wishlistRoutes from './routes/wishlist'
 import budgetRoutes from './routes/budget'
 import dashboardRoutes from './routes/dashboard'
 import notificationRoutes from './routes/notifications'
+import telegramRoutes from './routes/telegram'
+import cronRoutes from './routes/cron'
 
 const app = new Hono()
 
@@ -75,6 +77,8 @@ app.route('/api/wishlists', wishlistRoutes)
 app.route('/api/budgets', budgetRoutes)
 app.route('/api/dashboard', dashboardRoutes)
 app.route('/api/notifications', notificationRoutes)
+app.route('/api/telegram', telegramRoutes)
+app.route('/api/cron', cronRoutes)
 
 // ============================================================
 // EXPORT AND START SERVER

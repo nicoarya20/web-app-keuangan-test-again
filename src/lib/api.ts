@@ -217,9 +217,21 @@ export const api = {
         body: JSON.stringify(data),
       }),
     getById: (id: string) =>
-      request<{ id: string; email: string; name: string | null }>(`/users/${id}`),
+      request<{ id: string; email: string; name: string | null; telegramChatId: string | null }>(`/users/${id}`),
     getByEmail: (email: string) =>
-      request<{ id: string; email: string; name: string | null }>(`/users/email/${email}`),
+      request<{ id: string; email: string; name: string | null; telegramChatId: string | null }>(`/users/email/${email}`),
+    updateTelegram: (id: string, telegramChatId: string) =>
+      request<{ id: string; telegramChatId: string | null }>(`/users/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ telegramChatId }),
+      }),
+  },
+  telegram: {
+    test: (userId: string) =>
+      request<{ ok: boolean }>('/telegram/test', {
+        method: 'POST',
+        body: JSON.stringify({ userId }),
+      }),
   },
 
   // --- INCOME ---
